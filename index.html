@@ -1,334 +1,436 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mission Tracker v3</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Mission Tracker v4 — Daily Panel</title>
 <style>
-body {
-  margin:0;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: #121212;
-  color: #f0f0f0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px;
-}
-.calendar-container {
-  width: 420px;
-  background: #1e1e1e;
-  border-radius: 16px;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.6);
-  overflow: hidden;
-  margin-bottom: 30px;
-}
-.month-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px 20px;
-  background: #282828;
-  font-weight: bold;
-  font-size: 18px;
-  color: #fff;
-}
-.month-header button {
-  background: #444;
-  border: none;
-  color: #fff;
-  font-size: 18px;
-  padding: 5px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-.month-header button:hover { background: #ff4d4d; }
-.weekdays {
-  display: grid;
-  grid-template-columns: repeat(7,1fr);
-  text-align: center;
-  font-weight: bold;
-  padding: 10px 0;
-  background: #222;
-}
-.days {
-  display: grid;
-  grid-template-columns: repeat(7,1fr);
-  gap: 6px;
-  padding: 10px;
-}
-.day {
-  background: #2a2a2a;
-  padding: 18px 0;
-  border-radius: 8px;
-  text-align: center;
-  cursor: default;
-  position: relative;
-  transition: transform 0.2s, background 0.3s;
-}
-.day:hover { transform: scale(1.05); }
-.day.today { border: 2px solid #4CAF50; font-weight: bold; cursor:pointer; }
-.day.guardian { background: #3a3a3a; }
-.day.completed { background: #4CAF50; color: #fff; font-weight: bold; animation: markAnim 0.3s ease-out forwards; }
-.day.failed { background: #ff4d4d; color: #fff; font-weight: bold; }
-.day.nodata { background: #ffb74d; color: #000; font-weight: bold; } 
-.day.historical { background: #8B4513; color: #fff; font-weight: bold; } 
-.day.locked { background: #555; color: #ccc; font-weight: bold; cursor: not-allowed; }
+  :root{ --bg:#0f1115; --card:#14161a; --muted:#9aa0a6; --accent:#4caf50; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter,Segoe UI,system-ui,Arial;background:var(--bg);color:#e9eef3;display:flex;gap:20px;min-height:100vh;padding:20px}
 
-@keyframes markAnim { 0% {transform:scale(1);} 50%{transform:scale(1.3);} 100%{transform:scale(1);} }
+  /* Calendar container */
+  .calendar-container{width:560px;background:linear-gradient(180deg,#121214,#17171a);border-radius:14px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,0.6)}
+  .month-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .month-header .title{font-weight:700;font-size:18px}
+  .month-controls button{background:#222;border:0;color:#fff;padding:8px 12px;border-radius:8px;cursor:pointer}
 
-.chart-container {
-  width: 250px;
-  height: 250px;
-  position: relative;
-  margin-top: 20px;
-}
-canvas { background: #1e1e1e; border-radius: 50%; cursor:pointer; }
+  .month-summary{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;color:var(--muted);font-size:13px}
+  .month-summary .big{color:#fff;font-weight:700}
 
-.chart-labels {
-  position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  text-align: center;
-  color: #fff;
-}
-.chart-labels div { margin: 5px 0; font-size: 14px; cursor:default; }
+  .weekdays, .days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+  .weekdays div{color:var(--muted);text-align:center;font-weight:700;padding:8px 0}
 
-.analysis-panel {
-  margin-top: 20px;
-  background: #1e1e1e;
-  padding: 15px 20px;
-  border-radius: 12px;
-  width: 420px;
-}
-.analysis-panel h3 { margin-top:0; text-align:center; color:#fff;}
-.analysis-panel div { margin: 5px 0; font-size: 14px; color:#ccc;}
+  .day{background:#151618;padding:14px;border-radius:10px;min-height:72px;position:relative;overflow:hidden}
+  .day.empty{background:transparent}
+  .day .num{font-weight:700}
+  .day .info{font-size:12px;color:var(--muted);margin-top:6px}
+  .day.today{box-shadow:0 0 0 2px rgba(76,175,80,0.12)}
+
+  /* color helper states */
+  .day.submitted{color:#fff}
+  .day.pending{color:#fff}
+  .day.locked{opacity:0.6}
+
+  /* Side panel (always open) */
+  .panel{width:420px;background:linear-gradient(180deg,#0f1214,#14181b);border-radius:14px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,0.6);display:flex;flex-direction:column;gap:12px}
+  .panel h2{margin:0;font-size:18px}
+  .meta{display:flex;gap:10px;align-items:center}
+  .meta .date{color:var(--muted)}
+
+  .sessions{display:flex;flex-direction:column;gap:8px;max-height:55vh;overflow:auto;padding-right:6px}
+  .session{display:flex;gap:8px;align-items:center;background:#0f1416;padding:10px;border-radius:10px}
+  .session .title{width:86px;font-weight:700}
+  .session input[type=number]{width:76px;padding:8px;border-radius:8px;border:1px solid #222;background:#0b0d0f;color:#fff}
+  .session .note{font-size:12px;color:var(--muted)}
+
+  .controls{display:flex;gap:10px;align-items:center}
+  .btn{background:#263238;color:#fff;padding:8px 12px;border-radius:10px;border:0;cursor:pointer}
+  .btn.ghost{background:transparent;border:1px solid #2b2f33}
+  .add-btn{background:#2b6ef6}
+
+  .eff-row{display:flex;gap:10px;align-items:center}
+  .eff-row .label{width:86px;font-weight:700}
+  .eff-row .value{font-weight:700}
+  .save-indicator{font-size:13px;color:var(--muted)}
+  .submit-row{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
+
+  .hint{font-size:13px;color:var(--muted)}
+
+  /* small responsive */
+  @media(max-width:1100px){body{flex-direction:column;align-items:stretch}.calendar-container,.panel{width:100%}}
+
+  /* tooltip (custom) */
+  .tooltip{position:absolute;z-index:50;background:#0a0b0c;padding:8px;border-radius:8px;color:#ddd;font-size:13px;box-shadow:0 6px 18px rgba(0,0,0,0.6);display:none;white-space:pre-line}
 </style>
 </head>
 <body>
 
-<div class="calendar-container">
-  <div class="month-header">
-    <button id="prev">&lt;</button>
-    <div id="month-name"></div>
-    <button id="next">&gt;</button>
-  </div>
-  <div class="weekdays">
-    <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div>
-    <div>Thu</div><div>Fri</div><div>Sat</div>
-  </div>
-  <div class="days" id="days"></div>
-</div>
+  <div class="calendar-container">
+    <div class="month-header">
+      <div style="display:flex;flex-direction:column">
+        <div class="title" id="monthName">Month</div>
+        <div class="month-summary" id="monthSummary">
+          <div>Total sessions this month: <span class="big" id="monthSessions">0</span></div>
+          <div>Estimated hours: <span class="big" id="monthHours">0</span> hrs — Avg Efficiency: <span class="big" id="monthEff">0%</span></div>
+        </div>
+      </div>
+      <div class="month-controls">
+        <button id="prev">◀</button>
+        <button id="next">▶</button>
+      </div>
+    </div>
 
-<div class="chart-container">
-  <canvas id="missionChart" width="250" height="250"></canvas>
-  <div class="chart-labels">
-    <div>Completed: <span id="c-label">0</span></div>
-    <div>Failed: <span id="f-label">0</span></div>
-    <div>No Data: <span id="n-label">0</span></div>
-    <div>Left: <span id="l-label">0</span></div>
-  </div>
-</div>
+    <div class="weekdays">
+      <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+    </div>
 
-<div class="analysis-panel">
-  <h3>Mission Analysis</h3>
-  <div>Total Mission Days: <span id="total-days">0</span></div>
-  <div>Completed Days: <span id="completed-days">0</span></div>
-  <div>Failed Days: <span id="failed-days">0</span></div>
-  <div>No Data Days: <span id="historical-days">0</span></div>
-  <div>Remaining Days: <span id="remaining-days">0</span></div>
-  <div>Completion Rate: <span id="completion-rate">0</span>%</div>
-  <div>Failure Rate: <span id="failure-rate">0</span>%</div>
-</div>
+    <div class="days" id="days"></div>
+
+  </div>
+
+  <aside class="panel" id="sidePanel">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h2>Daily Panel — Today</h2>
+      <div class="meta"><div class="date" id="panelDate">—</div></div>
+    </div>
+
+    <div class="hint">Add sessions as you complete them. Ratings are saved automatically.. Efficiency is auto-calculated from session ratings (average rating × 10).</div>
+
+    <div class="sessions" id="sessionsList">
+      <!-- dynamic session items -->
+    </div>
+
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:center">
+      <button class="btn add-btn" id="addSessionBtn">+ Add Session</button>
+      <div class="save-indicator" id="saveIndicator">Saved</div>
+    </div>
+
+    <div class="eff-row">
+      <div class="label">Efficiency</div>
+      <div class="value" id="effVal">0%</div>
+    </div>
+
+    <div class="submit-row">
+      <div style="display:flex;gap:8px;align-items:center">
+        <div class="hint">Submit window:</div>
+        <div class="hint" id="submitWindow">20:30 - 22:30</div>
+      </div>
+      <div>
+          <button class="btn" id="submitBtn" style="display:none">Submit Day</button>
+
+      </div>
+    </div>
+
+    <div class="hint">Notes: After submitting, the day's data is locked and shown in the calendar with the efficiency percentage. Efficiency cannot be edited manually.</div>
+  </aside>
+
+  <div class="tooltip" id="tooltip"></div>
 
 <script>
+// ----------------- Helpers -----------------
+const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+function ymdKey(d){ return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}` }
+function todayDate(){ return new Date(); }
+function loadStorage(){ return JSON.parse(localStorage.getItem('missionData')||'{}') }
+function saveStorage(obj){ localStorage.setItem('missionData', JSON.stringify(obj)) }
+
+// ----------------- Init state -----------------
+let viewMonth = (new Date()).getMonth();
+let viewYear = (new Date()).getFullYear();
 const daysContainer = document.getElementById('days');
-const monthName = document.getElementById('month-name');
+const monthNameEl = document.getElementById('monthName');
 const prevBtn = document.getElementById('prev');
 const nextBtn = document.getElementById('next');
-const canvas = document.getElementById('missionChart');
-const ctx = canvas.getContext('2d');
 
-const cLabel = document.getElementById('c-label');
-const fLabel = document.getElementById('f-label');
-const nLabel = document.getElementById('n-label');
-const lLabel = document.getElementById('l-label');
+const sessionsList = document.getElementById('sessionsList');
+const addSessionBtn = document.getElementById('addSessionBtn');
+const effVal = document.getElementById('effVal');
+const saveIndicator = document.getElementById('saveIndicator');
+const panelDate = document.getElementById('panelDate');
+const submitBtn = document.getElementById('submitBtn');
+const tooltip = document.getElementById('tooltip');
+const monthSessionsEl = document.getElementById('monthSessions');
+const monthHoursEl = document.getElementById('monthHours');
+const monthEffEl = document.getElementById('monthEff');
 
-const totalDaysEl = document.getElementById('total-days');
-const completedEl = document.getElementById('completed-days');
-const failedEl = document.getElementById('failed-days');
-const historicalEl = document.getElementById('historical-days');
-const remainingEl = document.getElementById('remaining-days');
-const completionRateEl = document.getElementById('completion-rate');
-const failureRateEl = document.getElementById('failure-rate');
+let missionData = loadStorage();
+let today = todayDate();
+let todayKey = ymdKey(today);
 
-const today = new Date();
-let viewMonth = today.getMonth();
-let viewYear = today.getFullYear();
-const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+// Prepopulate historical days (Aug 1-15) as brownish if no existing data for that month
+(function prepopulateHistorical(){
+  const year = new Date().getFullYear();
+  // check if any August entry exists
+  let hasAugEntry=false;
+  Object.keys(missionData).forEach(k=>{ if(k.startsWith(`${year}-8-`)) hasAugEntry=true });
+  if(!hasAugEntry){
+    for(let d=1; d<=15; d++){
+      const key = `${year}-8-${d}`;
+      missionData[key] = { sessions: [], efficiency: 0, submitted: true, historical: true };
+    }
+    // Aug 16 -> high greenish example (16 sessions with high ratings)
+    const aug16Key = `${year}-8-16`;
+    const arr = [];
+    for(let i=0;i<16;i++) arr.push(9); // 9/10 average -> 90%
+    missionData[aug16Key] = { sessions: arr, efficiency: 90, submitted: true, historical: false };
+    saveStorage(missionData);
+  }
+})();
 
-// Mission timeline
-const missionStart = new Date(today.getFullYear(),7,1); // Aug 1
-const missionEnd = new Date(today.getFullYear(),9,31);  // Oct 31
-const historicalEnd = new Date(today.getFullYear(),7,14); // Aug 14
+if(!missionData[todayKey]){
+  missionData[todayKey] = { sessions: [], efficiency: 0, submitted: false, historical: false }
+  saveStorage(missionData);
+}
+let todaysData = missionData[todayKey];
 
-// Locked revision mission (Nov 1–22)
-const revisionMissionStart = new Date(today.getFullYear(),10,1);
-const revisionMissionEnd = new Date(today.getFullYear(),10,22);
+// ----------------- Utility functions -----------------
+function formatDateLong(d){ return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}` }
+panelDate.textContent = formatDateLong(today);
 
-let chartData = [];
+function calculateEfficiencyFromSessions(data){
+  const sess = data.sessions || [];
+  const filledVals = sess.filter(s => s!==null && s!==undefined && s!=='' );
+  if(filledVals.length===0) return 0;
+  const avgRating = filledVals.reduce((a,b)=> a + Number(b), 0) / filledVals.length; // 0..10
+  const efficiency = Math.round((avgRating/10)*100); // percent
+  return efficiency;
+}
 
-function drawChart(completed, failed, nodata, historical, left){
-  chartData = [
-    {value:completed, color:'#4CAF50', label:'Completed'},
-    {value:failed, color:'#ff4d4d', label:'Failed'},
-    {value:nodata, color:'#ffb74d', label:'No Data'},
-    {value:historical, color:'#8B4513', label:'Historical'},
-    {value:left, color:'#3a3a3a', label:'Left'}
-  ];
+function autosave(){
+  // recalc efficiency automatically
+  todaysData.efficiency = calculateEfficiencyFromSessions(todaysData);
+  saveIndicator.textContent = 'Saving...';
+  clearTimeout(window._saveTimer);
+  window._saveTimer = setTimeout(()=>{
+    missionData[todayKey] = todaysData; saveStorage(missionData);
+    saveIndicator.textContent = 'Saved';
+    setTimeout(()=>{ if(saveIndicator.textContent==='Saved') saveIndicator.textContent=''; },1200);
+    renderCalendar(viewMonth, viewYear);
+    updateMonthSummary(viewMonth, viewYear);
+    renderEfficiencyInPanel();
+  },350);
+}
 
-  const total = completed+failed+nodata+historical+left;
-  let startAngle= -0.5*Math.PI;
-  ctx.clearRect(0,0,250,250);
-
-  chartData.forEach(seg=>{
-    if(seg.value===0) return;
-    const angle = (seg.value/total)*2*Math.PI;
-    ctx.beginPath();
-    ctx.moveTo(125,125);
-    ctx.fillStyle = seg.color;
-    ctx.arc(125,125,120,startAngle,startAngle+angle);
-    ctx.fill();
-    startAngle+=angle;
+// ----------------- Session UI -----------------
+function renderSessionItem(index, value){
+  const wrap = document.createElement('div');
+  wrap.className = 'session';
+  const title = document.createElement('div'); title.className='title'; title.textContent = `Session ${index+1}`;
+  const input = document.createElement('input'); input.type='number'; input.min=0; input.max=10; input.value = (value===null||value===undefined)?'':value;
+  input.addEventListener('input', ()=>{
+    const val = input.value === '' ? null : Math.max(0, Math.min(10, Number(input.value)));
+    todaysData.sessions[index] = (val===null? null : val);
+    autosave();
   });
-
-  // Inner circle
-  ctx.beginPath();
-  ctx.fillStyle='#1e1e1e';
-  ctx.arc(125,125,80,0,2*Math.PI);
-  ctx.fill();
-
-  // Update center labels
-  cLabel.textContent = `${completed} (${((completed/total)*100).toFixed(1)}%)`;
-  fLabel.textContent = `${failed} (${((failed/total)*100).toFixed(1)}%)`;
-  nLabel.textContent = `${historical} (${((historical/total)*100).toFixed(1)}%)`;
-  lLabel.textContent = `${left} (${((left/total)*100).toFixed(1)}%)`;
+  const note = document.createElement('div'); note.className='note'; note.textContent='0-10';
+  wrap.appendChild(title); wrap.appendChild(input); wrap.appendChild(note);
+  if(todaysData.submitted) input.disabled = true;
+  return wrap;
 }
 
-// ================= Calendar & logic =================
-function pad(n){ return n<10?'0'+n:n; }
-
-function updateAnalysis(completed, failed, nodata, historical, left){
-  const totalDays = completed + failed + nodata + historical + left;
-  totalDaysEl.textContent = totalDays;
-  completedEl.textContent = completed + ` (${((completed/totalDays)*100).toFixed(1)}%)`;
-  failedEl.textContent = failed + ` (${((failed/totalDays)*100).toFixed(1)}%)`;
-  historicalEl.textContent = historical + ` (${((historical/totalDays)*100).toFixed(1)}%)`;
-  remainingEl.textContent = left + ` (${((left/totalDays)*100).toFixed(1)}%)`;
-  completionRateEl.textContent = ((completed/totalDays)*100).toFixed(1);
-  failureRateEl.textContent = ((failed/totalDays)*100).toFixed(1);
+function renderSessions(){ sessionsList.innerHTML='';
+  todaysData.sessions.forEach((val,i)=> sessionsList.appendChild(renderSessionItem(i,val)));
 }
 
-function updateChart(){
-  let completed=0, failed=0, historical=0, left=0;
-  let cur = new Date(missionStart.getTime());
-  while(cur <= missionEnd){
-    const key = `${cur.getFullYear()}-${cur.getMonth()+1}-${cur.getDate()}`;
-    const dayDate = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate());
-
-    if(dayDate <= historicalEnd) historical++;
-    else if(dayDate.toDateString() === today.toDateString()){
-      if(localStorage.getItem(key) === 'true') completed++;
-      else left++;
-    }
-    else if(dayDate < today){
-      if(localStorage.getItem(key) === 'true') completed++;
-      else if(localStorage.getItem(key) === 'failed') failed++;
-      else failed++;
-    } else left++;
-    cur.setDate(cur.getDate()+1);
-  }
-
-  drawChart(completed, failed, 0, historical, left);
-  updateAnalysis(completed, failed, 0, historical, left);
+function addSession(value=null){
+  if(todaysData.submitted) return;
+  todaysData.sessions.push(value);
+  autosave(); renderSessions();
 }
 
-function loadCalendar(month, year){
-  daysContainer.innerHTML='';
-  monthName.textContent = `${months[month]} ${year}`;
-  const firstDay = new Date(year, month,1).getDay();
-  const lastDate = new Date(year, month+1,0).getDate();
+addSessionBtn.addEventListener('click', ()=>{ addSession(null); });
 
-  for(let i=0;i<firstDay;i++){ daysContainer.appendChild(document.createElement('div')); }
-
-  for(let date=1; date<=lastDate; date++){
-    const dayDiv = document.createElement('div');
-    dayDiv.classList.add('day');
-    dayDiv.textContent = date;
-    const key = `${year}-${month+1}-${date}`;
-    const dayDate = new Date(year, month, date);
-
-    if(dayDate >= missionStart && dayDate <= missionEnd) dayDiv.classList.add('guardian');
-    if(dayDate <= historicalEnd) dayDiv.classList.add('historical');
-    if(dayDate < today && dayDate > historicalEnd){
-      if(localStorage.getItem(key) === 'true') dayDiv.classList.add('completed');
-      else if(localStorage.getItem(key) === 'failed') dayDiv.classList.add('failed');
-      else dayDiv.classList.add('failed');
-    }
-
-    if(dayDate.toDateString() === today.toDateString()){
-      dayDiv.classList.add('today');
-      if(localStorage.getItem(key) === 'true') dayDiv.classList.add('completed');
-      else dayDiv.addEventListener('click', ()=>{
-        const confirmClick = confirm("Are you sure you have completed all tasks for today?");
-        if(confirmClick){
-          dayDiv.classList.remove('nodata');
-          dayDiv.classList.add('completed');
-          localStorage.setItem(key,'true');
-          updateChart();
-        }
-      });
-    }
-
-    if(dayDate > today && dayDate <= missionEnd) dayDiv.classList.add('guardian');
-
-    if(dayDate >= revisionMissionStart && dayDate <= revisionMissionEnd){
-      dayDiv.classList.add('locked');
-      dayDiv.title="Locked: Will unlock after current mission";
-    }
-
-    daysContainer.appendChild(dayDiv);
-  }
-  updateChart();
+function renderEfficiencyInPanel(){
+  effVal.textContent = `${todaysData.efficiency || 0}%`;
 }
 
-prevBtn.addEventListener('click', ()=>{
-  if(viewMonth===0){ viewMonth=11; viewYear--; } else viewMonth--;
-  loadCalendar(viewMonth, viewYear);
-});
-nextBtn.addEventListener('click', ()=>{
-  if(viewMonth===11){ viewMonth=0; viewYear++; } else viewMonth++;
-  loadCalendar(viewMonth, viewYear);
+// ----------------- Submit window logic (20:30 - 22:30 local time)
+function isWithinSubmitWindow(now){
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(),20,30,0);
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(),22,30,0);
+  return now>=start && now<=end;
+}
+function updateSubmitBtnVisibility() {
+    submitBtn.style.display = 'inline-block'; // always visible
+    submitBtn.disabled = todaysData.submitted;  // disable if already submitted
+}
+
+submitBtn.addEventListener('click', ()=>{
+  // finalize day: set submitted true, set submittedAt and lock
+  todaysData.submitted = true; todaysData.submittedAt = (new Date()).toISOString();
+  // ensure efficiency recalculated
+  todaysData.efficiency = calculateEfficiencyFromSessions(todaysData);
+  missionData[todayKey] = todaysData; saveStorage(missionData);
+  renderSessions(); renderCalendar(viewMonth, viewYear);
+  updateSubmitBtnVisibility(); updateMonthSummary(viewMonth, viewYear);
+  alert('Day submitted! Nice job — efficiency saved to calendar.');
 });
 
-loadCalendar(viewMonth, viewYear);
+// ----------------- Calendar render & month summary -----------------
+function colorForDay(data){
+  if(!data) return '#151618';
+  if(data.historical){ // brownish
+    return 'hsl(25 45% 28%)'; // brown
+  }
+  const sess = data.sessions || [];
+  const filled = sess.filter(s => s!==null && s!==undefined && s!=='' ).length;
+  const total = Math.max(sess.length, 1);
+  const progress = filled/total; // 0..1
 
-// Auto-mark past days failed after 24h
+  if(!data.submitted){
+    // red (0) -> orange (30) -> yellowish
+    const hue = Math.round(0 + progress*30);
+    return `hsl(${hue} 80% 35%)`;
+  } else {
+    // combine progress 60% and efficiency 40%
+    const comb = progress*0.6 + ( (data.efficiency||0)/100 )*0.4;
+    const hue = Math.round(comb * 120); // 0..120 (red->green)
+    return `hsl(${hue} 70% 35%)`;
+  }
+}
+
+function titleForDay(data){
+  if(!data) return '';
+  const sess = data.sessions || [];
+  const filled = sess.filter(s => s!==null && s!==undefined && s!=='' ).length;
+  const total = Math.max(sess.length, 1);
+  if(data.submitted) return `Submitted — Eff: ${data.efficiency || 0}% — Sessions: ${filled}/${total}`;
+  if(filled>0) return `In progress — ${filled}/${total} sessions filled`;
+  if(data.historical) return `No study data (historical)`;
+  return `No data`;
+}
+function detailsTooltipText(data){
+  if(!data) return '';
+  const lines = [];
+  const sess = data.sessions || [];
+  sess.forEach((s,i) => {
+    lines.push(`Session ${i+1}: ${ (s===null || s===undefined || s==='' ) ? '—' : s + '/10' }`);
+  });
+  lines.push(`Efficiency: ${data.efficiency ?? 0}%`);
+  lines.push(`Submitted: ${data.submitted ? 'Yes' : 'No'}`);
+  return lines.join('\n'); // <-- fixed here
+}
+
+function renderCalendar(month, year){
+  daysContainer.innerHTML=''; monthNameEl.textContent = `${months[month]} ${year}`;
+  const firstDayIndex = new Date(year, month, 1).getDay();
+  const lastDate = new Date(year, month+1, 0).getDate();
+  // blank slots
+  for(let i=0;i<firstDayIndex;i++){ const b=document.createElement('div'); b.className='day empty'; daysContainer.appendChild(b); }
+
+  for(let d=1; d<=lastDate; d++){
+    const dateObj = new Date(year, month, d);
+    const key = `${dateObj.getFullYear()}-${dateObj.getMonth()+1}-${dateObj.getDate()}`;
+    const data = missionData[key];
+    const div = document.createElement('div'); div.className='day';
+    const num = document.createElement('div'); num.className='num'; num.textContent=d; div.appendChild(num);
+
+    if(data && data.submitted){
+      const eff = document.createElement('div'); eff.className='info'; eff.textContent = `${data.efficiency||0}% efficiency`;
+      div.appendChild(eff);
+      div.classList.add('submitted');
+      div.style.background = colorForDay(data);
+    } else if(data && data.historical){
+      const info = document.createElement('div'); info.className='info'; info.textContent = `No study data`;
+      div.appendChild(info);
+      div.style.background = colorForDay(data);
+      div.classList.add('pending');
+    } else if(key === todayKey){
+      div.classList.add('today');
+      const live = missionData[todayKey] || {sessions:[],efficiency:0,submitted:false};
+      const info = document.createElement('div'); info.className='info';
+      const filled = (live.sessions||[]).filter(s => s!==null && s!==undefined && s!=='').length;
+      info.textContent = live.submitted ? `${live.efficiency||0}% efficiency` : `Progress: ${filled}/${Math.max(live.sessions.length,1)}`;
+      div.appendChild(info);
+      div.style.background = colorForDay(live);
+    } else if(data && !data.submitted){
+      const info = document.createElement('div'); info.className='info'; info.textContent = `Saved — ${ (data.sessions||[]).filter(s => s!==null && s!==undefined && s!=='').length }/ ${Math.max((data.sessions||[]).length,1)}`;
+      div.appendChild(info);
+      div.style.background = colorForDay(data);
+      div.classList.add('pending');
+    } else {
+      div.style.background = '#151618';
+    }
+
+    // future locked visual
+    const now = new Date();
+    if(dateObj > now) div.classList.add('locked');
+
+    // tooltip on hover
+    div.addEventListener('mouseenter', (e)=>{
+      const txt = detailsTooltipText(data);
+      if(!txt) return;
+      tooltip.textContent = txt; tooltip.style.display='block';
+      const r = e.target.getBoundingClientRect();
+      tooltip.style.left = (r.right + 8) + 'px'; tooltip.style.top = (r.top) + 'px';
+    });
+    div.addEventListener('mouseleave', ()=>{ tooltip.style.display='none'; });
+
+    daysContainer.appendChild(div);
+  }
+}
+
+function updateMonthSummary(month, year){
+  // compute total sessions in the month and estimated hours (1 session = 50 minutes) and average efficiency across submitted days
+  let totalSessions = 0; let sumEfficiency = 0; let effCount=0;
+  const yearVal = year;
+  for(const k in missionData){
+    const parts = k.split('-'); const y = Number(parts[0]); const m = Number(parts[1]);
+    if(y===yearVal && m===month+1){
+      const d = missionData[k];
+      if(d && Array.isArray(d.sessions)){
+        const filled = d.sessions.filter(s => s!==null && s!==undefined && s!=='' ).length;
+        totalSessions += filled;
+      }
+      if(d && d.submitted){ sumEfficiency += (d.efficiency||0); effCount++; }
+    }
+  }
+  const totalMinutes = totalSessions * 50;
+  const hours = Math.floor(totalMinutes/60);
+  const mins = totalMinutes % 60;
+  const hoursStr = `${hours}h ${mins}m`;
+  const avgEff = effCount>0? Math.round(sumEfficiency/effCount) : 0;
+  monthSessionsEl.textContent = totalSessions;
+  monthHoursEl.textContent = hoursStr;
+  monthEffEl.textContent = `${avgEff}%`;
+}
+
+// ----------------- Initial render -----------------
+function loadTodayPanel(){
+  todaysData = missionData[todayKey] || {sessions:[],efficiency:0,submitted:false};
+  if(!Array.isArray(todaysData.sessions)) todaysData.sessions = [];
+  renderSessions(); renderEfficiencyInPanel();
+  updateSubmitBtnVisibility();
+  updateMonthSummary(viewMonth, viewYear);
+}
+
+renderCalendar(viewMonth, viewYear); loadTodayPanel();
+
+// navigation
+prevBtn.addEventListener('click', ()=>{ if(viewMonth===0){viewMonth=11;viewYear--;} else viewMonth--; renderCalendar(viewMonth, viewYear); updateMonthSummary(viewMonth, viewYear); });
+nextBtn.addEventListener('click', ()=>{ if(viewMonth===11){viewMonth=0;viewYear++;} else viewMonth++; renderCalendar(viewMonth, viewYear); updateMonthSummary(viewMonth, viewYear); });
+
+// show submit button if time window
+
+setInterval(updateSubmitBtnVisibility, 30*1000);
+
+
+// midnight rollover
 setInterval(()=>{
-  const todayKey = `${today.getFullYear()}-${today.getMonth()+1}-${today.getDate()}`;
-  const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(),23,59,59);
-  if(!localStorage.getItem(todayKey) && new Date()>=endOfDay){
-    localStorage.setItem(todayKey,'failed');
-    loadCalendar(viewMonth, viewYear);
+  const now = new Date();
+  const newKey = ymdKey(now);
+  if(newKey !== todayKey){
+    today = now; todayKey = newKey; panelDate.textContent = formatDateLong(now);
+    missionData = loadStorage();
+    if(!missionData[todayKey]) missionData[todayKey] = {sessions:[],efficiency:0,submitted:false};
+    loadTodayPanel(); renderCalendar(viewMonth, viewYear);
   }
-},60000);
+}, 60*1000);
 
-
-
-
+// initial default sessions
+if(todaysData.sessions.length===0 && !todaysData.submitted){ addSession(null); addSession(null); addSession(null); }
 
 </script>
 </body>
 </html>
-
