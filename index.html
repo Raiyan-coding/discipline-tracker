@@ -5,139 +5,292 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Mission Tracker v4 — Daily Panel</title>
 <style>
-  :root{ --bg:#0f1115; --card:#14161a; --muted:#9aa0a6; --accent:#4caf50; }
-  *{box-sizing:border-box}
-  body{margin:0;font-family:Inter,Segoe UI,system-ui,Arial;background:var(--bg);color:#e9eef3;display:flex;gap:20px;min-height:100vh;padding:20px}
+:root{
+  --bg:#0f1115;
+  --card:#14161a;
+  --muted:#9aa0a6;
+  --muted-2:#8b9499;
+  --accent:#4caf50;
+  --accent-2:#2b6ef6;
+  --glass: rgba(255,255,255,0.03);
+  --radius:14px;
+  --shadow: 0 10px 30px rgba(0,0,0,0.55);
+  --glass-border: rgba(255,255,255,0.03);
+}
 
-  /* Calendar container */
-  .calendar-container{width:560px;background:linear-gradient(180deg,#121214,#17171a);border-radius:14px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,0.6)}
-  .month-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-  .month-header .title{font-weight:700;font-size:18px}
-  .month-controls button{background:#222;border:0;color:#fff;padding:8px 12px;border-radius:8px;cursor:pointer}
+/* reset & base */
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family:Inter, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background:linear-gradient(180deg,var(--bg), #0b0c0e);
+  color:#e9eef3;
+  display:flex;
+  gap:20px;
+  min-height:100vh;
+  padding:20px;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  line-height:1.35;
+}
 
-  .month-summary{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;color:var(--muted);font-size:13px}
-  .month-summary .big{color:#fff;font-weight:700}
+/* Layout */
+.container{
+  display:grid;
+  grid-template-columns:560px 420px 1fr;
+  gap:20px;
+  width:100%;
+  align-items:start;
+}
 
-  .weekdays, .days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
-  .weekdays div{color:var(--muted);text-align:center;font-weight:700;padding:8px 0}
+/* Cards */
+.calendar-container,
+.panel,
+.analysis{
+  background: linear-gradient(180deg,var(--card), #111318);
+  border-radius:var(--radius);
+  padding:18px;
+  box-shadow:var(--shadow);
+  border:1px solid var(--glass-border);
+  backdrop-filter: blur(6px);
+}
 
-  .day{background:#151618;padding:14px;border-radius:10px;min-height:72px;position:relative;overflow:hidden}
-  .day.empty{background:transparent}
-  .day .num{font-weight:700}
-  .day .info{font-size:12px;color:var(--muted);margin-top:6px}
-  .day.today{box-shadow:0 0 0 2px rgba(76,175,80,0.12)}
+/* Month header */
+.month-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:12px}
+.month-header .title{font-weight:700;font-size:18px;letter-spacing:0.2px}
+.month-controls{display:flex;gap:8px;align-items:center}
+.month-controls button{
+  background:transparent;
+  border:1px solid rgba(255,255,255,0.04);
+  color:var(--muted);
+  padding:8px 12px;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:600;
+  transition:all .18s ease;
+}
+.month-controls button:hover{ transform:translateY(-2px); color:#fff; border-color:rgba(255,255,255,0.08) }
 
-  /* color helper states */
-  .day.submitted{color:#fff}
-  .day.pending{color:#fff}
-  .day.locked{opacity:0.6}
+/* Month summary */
+.month-summary{display:flex;flex-direction:column;gap:6px;margin-bottom:6px;color:var(--muted);font-size:13px}
+.month-summary .big{color:#fff;font-weight:800;display:inline-block}
 
-  /* Side panel (always open) */
-  .panel{width:420px;background:linear-gradient(180deg,#0f1214,#14181b);border-radius:14px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,0.6);display:flex;flex-direction:column;gap:12px}
-  .panel h2{margin:0;font-size:18px}
-  .meta{display:flex;gap:10px;align-items:center}
-  .meta .date{color:var(--muted)}
+/* Weekdays / days grid */
+.weekdays, .days{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+.weekdays div{color:var(--muted);text-align:center;font-weight:700;padding:8px 0;font-size:12px;opacity:0.95}
 
-  .sessions{display:flex;flex-direction:column;gap:8px;max-height:55vh;overflow:auto;padding-right:6px}
-  .session{display:flex;gap:8px;align-items:center;background:#0f1416;padding:10px;border-radius:10px}
-  .session .title{width:86px;font-weight:700}
-  .session input[type=number]{width:76px;padding:8px;border-radius:8px;border:1px solid #222;background:#0b0d0f;color:#fff}
-  .session .note{font-size:12px;color:var(--muted)}
+/* Day cell */
+.day{
+  background:linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));
+  padding:12px;
+  border-radius:10px;
+  min-height:70px;
+  position:relative;
+  overflow:hidden;
+  cursor:pointer;
+  border:1px solid transparent;
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+}
+.day:hover{ transform:translateY(-4px); box-shadow:0 14px 30px rgba(0,0,0,0.6); border-color:rgba(255,255,255,0.03) }
+.day.empty{background:transparent;cursor:default;box-shadow:none;transform:none}
+.day.locked{opacity:0.45;pointer-events:none;filter:grayscale(0.08)}
 
-  .controls{display:flex;gap:10px;align-items:center}
-  .btn{background:#263238;color:#fff;padding:8px 12px;border-radius:10px;border:0;cursor:pointer}
-  .btn.ghost{background:transparent;border:1px solid #2b2f33}
-  .add-btn{background:#2b6ef6}
+/* number + info */
+.day .num{
+  font-weight:800;
+  font-size:14px;
+  display:inline-block;
+  padding:6px 8px;
+  border-radius:8px;
+  background:rgba(255,255,255,0.02);
+  color:#fff;
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,0.25);
+}
+.day .info{font-size:12px;color:var(--muted);margin-top:8px;opacity:0.95}
 
-  .eff-row{display:flex;gap:10px;align-items:center}
-  .eff-row .label{width:86px;font-weight:700}
-  .eff-row .value{font-weight:700}
-  .save-indicator{font-size:13px;color:var(--muted)}
-  .submit-row{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
+/* Today highlight */
+.day.today{outline:0; box-shadow:0 0 0 3px rgba(245,166,35,0.07)}
 
-  .hint{font-size:13px;color:var(--muted)}
+/* Sessions list */
+.sessions{display:flex;flex-direction:column;gap:10px;max-height:56vh;overflow:auto;padding-right:6px}
+.session{
+  display:flex;gap:10px;align-items:center;
+  background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.02)
+}
+.session .title{width:86px;font-weight:700;font-size:13px;color:#fff}
+.session input[type=number]{width:76px;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);background:#0b0d0f;color:#fff;font-weight:600}
+.session .note{font-size:12px;color:var(--muted)}
+.session .del{
+  margin-left:auto;background:transparent;border:1px solid rgba(255,255,255,0.03);padding:6px;border-radius:8px;color:var(--muted);cursor:pointer;transition:all .12s ease;
+}
+.session .del:hover{ transform:translateY(-2px); color:#fff; border-color:rgba(255,255,255,0.06) }
 
-  /* small responsive */
-  @media(max-width:1100px){body{flex-direction:column;align-items:stretch}.calendar-container,.panel{width:100%}}
+/* Buttons */
+.btn{
+  background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  color:#fff;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);cursor:pointer;font-weight:700;transition:all .14s ease;
+}
+.btn:hover{ transform:translateY(-3px); box-shadow:0 8px 20px rgba(0,0,0,0.45); }
+.btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)}
+.add-btn{background:linear-gradient(180deg,var(--accent-2),#1f5ce6); border:0; box-shadow: 0 6px 18px rgba(43,110,246,0.12)}
 
-  /* tooltip (custom) */
-  .tooltip{position:absolute;z-index:50;background:#0a0b0c;padding:8px;border-radius:8px;color:#ddd;font-size:13px;box-shadow:0 6px 18px rgba(0,0,0,0.6);display:none;white-space:pre-line}
+.eff-row{display:flex;gap:10px;align-items:center}
+.eff-row .label{width:120px;font-weight:700}
+.eff-row .value{font-weight:800;color:var(--accent)}
+
+.save-indicator{font-size:13px;color:var(--muted)}
+
+/* Footer / social buttons */
+.footer{margin-top:14px;border-top:1px solid rgba(255,255,255,0.03);padding-top:12px;color:var(--muted);font-size:13px;display:flex;flex-direction:column;gap:8px}
+.footer strong{color:#fff}
+.social{display:flex;gap:8px}
+.social a{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 10px;
+  border-radius:10px;
+  background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border:1px solid rgba(255,255,255,0.03);
+  color:var(--muted);
+  text-decoration:none;
+  font-weight:700;
+  font-size:13px;
+  transition:all .14s ease;
+}
+.social a:hover{ background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02)); color:#fff; transform:translateY(-3px); border-color:rgba(255,255,255,0.08) }
+
+/* Analysis cards */
+.card{padding:14px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
+.kpi{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 0;color:var(--muted)}
+.kpi div:last-child{font-weight:800;color:#fff}
+
+/* Tooltip */
+.tooltip{position:fixed;z-index:60;background:#0a0b0c;padding:8px;border-radius:8px;color:#ddd;font-size:13px;box-shadow:0 6px 18px rgba(0,0,0,0.6);display:none;white-space:pre-line;max-width:300px}
+
+/* small screens / mobile improvements */
+@media (max-width:1200px){
+  body{padding:14px}
+  .container{grid-template-columns:1fr; gap:12px}
+  .month-header{gap:6px}
+  .month-controls{flex-wrap:wrap}
+  .calendar-container{padding:14px}
+  .panel, .analysis{padding:14px}
+  .weekdays div{font-size:11px;padding:6px 0}
+  .day{min-height:64px;padding:10px}
+  .day .num{padding:5px 7px;font-size:13px}
+  .sessions{max-height:38vh}
+  .session{padding:8px}
+  .session .title{width:74px;font-size:13px}
+  .add-btn{padding:7px 10px}
+  .footer{font-size:13px}
+}
+
+/* extra small screens: compact calendar */
+@media (max-width:480px){
+  .days{gap:6px}
+  .day{padding:8px;min-height:58px}
+  .day .num{font-size:12px;padding:4px 6px;border-radius:6px}
+  .session input[type=number]{width:60px;font-size:13px;padding:6px}
+  .social a{padding:7px 8px;font-size:13px}
+}
+
 </style>
 </head>
 <body>
+  <div class="container">
 
-  <div class="calendar-container">
-    <div class="month-header">
-      <div style="display:flex;flex-direction:column">
-        <div class="title" id="monthName">Month</div>
-        <div class="month-summary" id="monthSummary">
-          <div>Total sessions this month: <span class="big" id="monthSessions">0</span></div>
-          <div>Estimated hours: <span class="big" id="monthHours">0</span> hrs — Avg Efficiency: <span class="big" id="monthEff">0%</span></div>
+    <div class="calendar-container" aria-label="Calendar">
+      <div class="month-header">
+        <div style="display:flex;flex-direction:column">
+          <div class="title" id="monthName">Month</div>
+          <div class="month-summary" id="monthSummary">
+            <div>Total sessions this month: <span class="big" id="monthSessions">0</span></div>
+            <div>Pure study: <span class="big" id="monthPure">0h 0m</span> — Normal study: <span class="big" id="monthNormal">0h 0m</span></div>
+          </div>
+        </div>
+        <div class="month-controls">
+          <button id="prev" aria-label="Previous month">◀</button>
+          <button id="next" aria-label="Next month">▶</button>
+          <button id="importBtn" class="btn ghost" title="Import this month's JSON">Import</button>
+          <button id="exportBtn" class="btn ghost" title="Export this month's JSON">Export</button>
+          <button id="shareBtn" class="btn ghost" title="Share this month's data or image">Share</button>
+          <input type="file" id="fileInput" accept="application/json" style="display:none" />
         </div>
       </div>
-      <div class="month-controls">
-        <button id="prev">◀</button>
-        <button id="next">▶</button>
+
+      <div class="weekdays">
+        <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
       </div>
+
+      <div class="days" id="days" aria-live="polite"></div>
+
     </div>
 
-    <div class="weekdays">
-      <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
-    </div>
+    <aside class="panel" id="sidePanel" aria-label="Daily panel">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h2 id="panelTitle">Daily Panel — Today</h2>
+        <div class="meta"><div class="date" id="panelDate">—</div></div>
+      </div>
 
-    <div class="days" id="days"></div>
+      <div class="hint">6 sessions are mandatory each day (first 6 are fixed). You can add extra sessions and delete additional ones. Ratings are saved automatically.</div>
+
+      <div class="sessions" id="sessionsList" role="list"></div>
+
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center">
+        <div style="display:flex;gap:8px">
+          <button class="btn add-btn" id="addSessionBtn">+ Add Session</button>
+        </div>
+        <div class="save-indicator" id="saveIndicator">Saved</div>
+      </div>
+
+      <div class="eff-row">
+        <div class="label">Efficiency</div>
+        <div class="value" id="effVal">0%</div>
+      </div>
+
+      <div class="hint" id="autoSubmitHint">Days auto-submit at 23:59 Dhaka time. If you fail to complete 6 mandatory sessions, punish yourself (configurable).</div>
+
+      <div class="footer">
+        <div>Made by <strong>Md Raiyan Islam</strong></div>
+        <div class="social">
+          <a href="https://www.facebook.com/profile.php?id=100090521202321" target="_blank">Facebook</a>
+          <a href="https://www.instagram.com/ra.iyan329/" target="_blank">Instagram</a>
+        </div>
+      </div>
+    </aside>
+
+    <section class="analysis" id="analysisPanel">
+      <h3>Analysis — Month</h3>
+      <div class="card">
+        <div class="kpi"><div>Total sessions (filled):</div><div id="kpiTotal">0</div></div>
+        <div class="kpi"><div>Avg Efficiency:</div><div id="kpiAvg">0%</div></div>
+        <div class="kpi"><div>Pure study time:</div><div id="kpiPure">0h 0m</div></div>
+        <div class="kpi"><div>Normal study time:</div><div id="kpiNormal">0h 0m</div></div>
+        <div id="kpiDetails" style="margin-top:8px;color:var(--muted)"></div>
+      </div>
+      <div style="margin-top:12px;color:var(--muted);font-size:13px">Switch months with the arrows in the left calendar.</div>
+    </section>
 
   </div>
 
-  <aside class="panel" id="sidePanel">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <h2>Daily Panel — Today</h2>
-      <div class="meta"><div class="date" id="panelDate">—</div></div>
-    </div>
-
-    <div class="hint">Add sessions as you complete them. Ratings are saved automatically.. Efficiency is auto-calculated from session ratings (average rating × 10).</div>
-
-    <div class="sessions" id="sessionsList">
-      <!-- dynamic session items -->
-    </div>
-
-    <div style="display:flex;justify-content:space-between;gap:10px;align-items:center">
-      <button class="btn add-btn" id="addSessionBtn">+ Add Session</button>
-      <div class="save-indicator" id="saveIndicator">Saved</div>
-    </div>
-
-    <div class="eff-row">
-      <div class="label">Efficiency</div>
-      <div class="value" id="effVal">0%</div>
-    </div>
-
-    <div class="submit-row">
-      <div style="display:flex;gap:8px;align-items:center">
-        <div class="hint">Submit window:</div>
-        <div class="hint" id="submitWindow">20:30 - 22:30</div>
-      </div>
-      <div>
-          <button class="btn" id="submitBtn" style="display:none">Submit Day</button>
-
-      </div>
-    </div>
-
-    <div class="hint">Notes: After submitting, the day's data is locked and shown in the calendar with the efficiency percentage. Efficiency cannot be edited manually.</div>
-  </aside>
-
-  <div class="tooltip" id="tooltip"></div>
+  <div class="tooltip" id="tooltip" role="tooltip"></div>
 
 <script>
-// ----------------- Helpers -----------------
+/* ----------------- Configuration & helpers ----------------- */
+const FIXED_SESSIONS = 6; // mandatory number of fixed sessions for today
+const STORAGE_KEY = 'missionData'; // keep original key name for compatibility
 const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-function ymdKey(d){ return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}` }
-function todayDate(){ return new Date(); }
-function loadStorage(){ return JSON.parse(localStorage.getItem('missionData')||'{}') }
-function saveStorage(obj){ localStorage.setItem('missionData', JSON.stringify(obj)) }
 
-// ----------------- Init state -----------------
-let viewMonth = (new Date()).getMonth();
-let viewYear = (new Date()).getFullYear();
+function getDhakaNow(){ return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' })); }
+function ymdKey(d){ return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}` }
+
+/* ----------------- DOM refs & state ----------------- */
 const daysContainer = document.getElementById('days');
 const monthNameEl = document.getElementById('monthName');
 const prevBtn = document.getElementById('prev');
@@ -148,185 +301,244 @@ const addSessionBtn = document.getElementById('addSessionBtn');
 const effVal = document.getElementById('effVal');
 const saveIndicator = document.getElementById('saveIndicator');
 const panelDate = document.getElementById('panelDate');
-const submitBtn = document.getElementById('submitBtn');
+const panelTitle = document.getElementById('panelTitle');
 const tooltip = document.getElementById('tooltip');
+
+const monthPureEl = document.getElementById('monthPure');
+const monthNormalEl = document.getElementById('monthNormal');
 const monthSessionsEl = document.getElementById('monthSessions');
-const monthHoursEl = document.getElementById('monthHours');
-const monthEffEl = document.getElementById('monthEff');
 
-let missionData = loadStorage();
-let today = todayDate();
-let todayKey = ymdKey(today);
+const kpiTotal = document.getElementById('kpiTotal');
+const kpiAvg = document.getElementById('kpiAvg');
+const kpiPure = document.getElementById('kpiPure');
+const kpiNormal = document.getElementById('kpiNormal');
+const kpiDetails = document.getElementById('kpiDetails');
 
-// Prepopulate historical days (Aug 1-15) as brownish if no existing data for that month
-(function prepopulateHistorical(){
-  const year = new Date().getFullYear();
-  // check if any August entry exists
-  let hasAugEntry=false;
-  Object.keys(missionData).forEach(k=>{ if(k.startsWith(`${year}-8-`)) hasAugEntry=true });
-  if(!hasAugEntry){
-    for(let d=1; d<=15; d++){
-      const key = `${year}-8-${d}`;
-      missionData[key] = { sessions: [], efficiency: 0, submitted: true, historical: true };
-    }
-    // Aug 16 -> high greenish example (16 sessions with high ratings)
-    const aug16Key = `${year}-8-16`;
-    const arr = [];
-    for(let i=0;i<16;i++) arr.push(9); // 9/10 average -> 90%
-    missionData[aug16Key] = { sessions: arr, efficiency: 90, submitted: true, historical: false };
-    saveStorage(missionData);
-  }
-})();
+const importBtn = document.getElementById('importBtn');
+const exportBtn = document.getElementById('exportBtn');
+const shareBtn = document.getElementById('shareBtn');
+const fileInput = document.getElementById('fileInput');
 
-if(!missionData[todayKey]){
-  missionData[todayKey] = { sessions: [], efficiency: 0, submitted: false, historical: false }
-  saveStorage(missionData);
-}
-let todaysData = missionData[todayKey];
+let missionData = (function(){ try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') } catch(e){ return {}; } })();
 
-// ----------------- Utility functions -----------------
+let viewMonth = (new Date()).getMonth();
+let viewYear = (new Date()).getFullYear();
+let dhakaNow = getDhakaNow();
+let todayDhakaKey = ymdKey(dhakaNow);
+let activeKey = todayDhakaKey;
+let lastAutoSubmittedDhakaKey = null;
+
+/* Remove any old demo prepopulated August entries (defensive) */
+(function removeDemoAugust(){ const keys = Object.keys(missionData); keys.forEach(k=>{ try{ const p=k.split('-'); if(p.length===3){ const y=Number(p[0]), m=Number(p[1]), d=Number(p[2]); if(y===2025 && m===8 && d>=1 && d<=16){ delete missionData[k]; } } }catch{} }); localStorage.setItem(STORAGE_KEY, JSON.stringify(missionData)); })();
+
+/* Ensure today's key exists and includes fixed sessions notation later */
+if(!missionData[todayDhakaKey]) missionData[todayDhakaKey] = { sessions: [], efficiency: 0, submitted: false, historical: false };
+
+/* ----------------- Utility functions ----------------- */
 function formatDateLong(d){ return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}` }
-panelDate.textContent = formatDateLong(today);
 
 function calculateEfficiencyFromSessions(data){
-  const sess = data.sessions || [];
-  const filledVals = sess.filter(s => s!==null && s!==undefined && s!=='' );
-  if(filledVals.length===0) return 0;
-  const avgRating = filledVals.reduce((a,b)=> a + Number(b), 0) / filledVals.length; // 0..10
-  const efficiency = Math.round((avgRating/10)*100); // percent
-  return efficiency;
+  const sess = Array.isArray(data.sessions) ? data.sessions : [];
+  const filled = sess.filter(s => s!==null && s!==undefined && s!=='');
+  if(filled.length===0) return 0;
+  const avg = filled.reduce((a,b)=> a + Number(b), 0) / filled.length;
+  return Math.round((avg/10)*100);
 }
 
-function autosave(){
-  // recalc efficiency automatically
-  todaysData.efficiency = calculateEfficiencyFromSessions(todaysData);
+/* Pure study minutes: per session 50m if rating>=8 else 50*(rating/8) */
+function computeMinutesForSession(rating){
+  if(rating === null || rating === undefined || rating === '') return 0;
+  const r = Number(rating);
+  if(isNaN(r)) return 0;
+  if(r >= 8) return 50;
+  return 50 * (r/8);
+}
+
+function minutesToHrsMins(mins){ const h=Math.floor(mins/60); const m=Math.round(mins%60); return `${h}h ${m}m`; }
+
+/* Autosave scheduling */
+function scheduleSave(){
   saveIndicator.textContent = 'Saving...';
   clearTimeout(window._saveTimer);
-  window._saveTimer = setTimeout(()=>{
-    missionData[todayKey] = todaysData; saveStorage(missionData);
-    saveIndicator.textContent = 'Saved';
-    setTimeout(()=>{ if(saveIndicator.textContent==='Saved') saveIndicator.textContent=''; },1200);
-    renderCalendar(viewMonth, viewYear);
-    updateMonthSummary(viewMonth, viewYear);
-    renderEfficiencyInPanel();
-  },350);
+  window._saveTimer = setTimeout(()=>{ localStorage.setItem(STORAGE_KEY, JSON.stringify(missionData)); saveIndicator.textContent = 'Saved'; setTimeout(()=>{ if(saveIndicator.textContent==='Saved') saveIndicator.textContent=''; },1200); renderCalendar(viewMonth, viewYear); updateMonthSummary(viewMonth, viewYear); renderEfficiencyInPanel(); }, 300);
 }
 
-// ----------------- Session UI -----------------
+/* ----------------- Session UI ----------------- */
+function isDhakaTodayKey(key){ return key === ymdKey(getDhakaNow()); }
+function isPastRelativeToDhaka(key){
+  const parts = key.split('-'); if(parts.length!==3) return false;
+  const day = new Date(Number(parts[0]), Number(parts[1])-1, Number(parts[2]));
+  const dhNow = getDhakaNow(); const dhToday = new Date(dhNow.getFullYear(), dhNow.getMonth(), dhNow.getDate());
+  return day < dhToday;
+}
+function isEditableDay(key){ const d = missionData[key] || {submitted:false}; return isDhakaTodayKey(key) && !d.submitted; }
+
 function renderSessionItem(index, value){
-  const wrap = document.createElement('div');
-  wrap.className = 'session';
+  const wrap = document.createElement('div'); wrap.className='session'; wrap.setAttribute('role','listitem');
   const title = document.createElement('div'); title.className='title'; title.textContent = `Session ${index+1}`;
-  const input = document.createElement('input'); input.type='number'; input.min=0; input.max=10; input.value = (value===null||value===undefined)?'':value;
-  input.addEventListener('input', ()=>{
-    const val = input.value === '' ? null : Math.max(0, Math.min(10, Number(input.value)));
-    todaysData.sessions[index] = (val===null? null : val);
-    autosave();
-  });
+  const input = document.createElement('input'); input.type='number'; input.min=0; input.max=10; input.step=1; input.setAttribute('aria-label', `Session ${index+1} rating`);
+  input.value = (value===null||value===undefined)?'':value;
   const note = document.createElement('div'); note.className='note'; note.textContent='0-10';
-  wrap.appendChild(title); wrap.appendChild(input); wrap.appendChild(note);
-  if(todaysData.submitted) input.disabled = true;
+  const del = document.createElement('button'); del.className='del'; del.title='Delete session'; del.textContent='✕';
+
+  // logic: for today's editable day, first FIXED_SESSIONS exist and cannot be deleted (del hidden)
+  const editable = isEditableDay(activeKey);
+  input.disabled = !editable;
+  if(index < FIXED_SESSIONS) del.style.display = 'none'; // fixed sessions cannot be deleted (UI)
+  else del.style.display = editable ? 'inline-block' : 'none';
+
+  input.addEventListener('input', ()=>{
+    if(!isEditableDay(activeKey)) return;
+    const raw = input.value;
+    const val = raw === '' ? null : Math.max(0, Math.min(10, Number(raw)));
+    if(!missionData[activeKey]) missionData[activeKey] = {sessions:[],efficiency:0,submitted:false};
+    missionData[activeKey].sessions[index] = (val===null? null : val);
+    missionData[activeKey].efficiency = calculateEfficiencyFromSessions(missionData[activeKey]);
+    scheduleSave();
+  });
+
+  del.addEventListener('click', ()=>{
+    if(!isEditableDay(activeKey)) return;
+    if(index < FIXED_SESSIONS) return;
+    missionData[activeKey].sessions.splice(index,1);
+    scheduleSave();
+    renderSessions();
+  });
+
+  wrap.appendChild(title); wrap.appendChild(input); wrap.appendChild(note); wrap.appendChild(del);
   return wrap;
 }
 
-function renderSessions(){ sessionsList.innerHTML='';
-  todaysData.sessions.forEach((val,i)=> sessionsList.appendChild(renderSessionItem(i,val)));
+function renderSessions(){
+  sessionsList.innerHTML = '';
+  if(!missionData[activeKey]) missionData[activeKey] = {sessions:[],efficiency:0,submitted:false,historical:false};
+  if(!Array.isArray(missionData[activeKey].sessions)) missionData[activeKey].sessions = [];
+
+  // For Dhaka today only: ensure FIXED_SESSIONS exist
+  if(isDhakaTodayKey(activeKey) && missionData[activeKey].sessions.length < FIXED_SESSIONS){
+    const need = FIXED_SESSIONS - missionData[activeKey].sessions.length;
+    for(let i=0;i<need;i++) missionData[activeKey].sessions.push(null);
+    scheduleSave();
+  }
+
+  missionData[activeKey].sessions.forEach((val,i)=> sessionsList.appendChild(renderSessionItem(i,val)));
+
+  if(missionData[activeKey].sessions.length === 0){
+    const hint = document.createElement('div'); hint.className='hint'; hint.textContent = 'No sessions yet — click + Add Session to create one.';
+    sessionsList.appendChild(hint);
+  }
 }
 
+/* Add session (extra sessions allowed beyond FIXED_SESSIONS) */
 function addSession(value=null){
-  if(todaysData.submitted) return;
-  todaysData.sessions.push(value);
-  autosave(); renderSessions();
+  if(!isEditableDay(activeKey)) return;
+  if(!missionData[activeKey]) missionData[activeKey] = {sessions:[],efficiency:0,submitted:false};
+  missionData[activeKey].sessions.push(value);
+  scheduleSave();
+  renderSessions();
 }
-
-addSessionBtn.addEventListener('click', ()=>{ addSession(null); });
+addSessionBtn.addEventListener('click', ()=> addSession(null));
 
 function renderEfficiencyInPanel(){
-  effVal.textContent = `${todaysData.efficiency || 0}%`;
+  const d = missionData[activeKey] || {efficiency:0};
+  effVal.textContent = `${d.efficiency || 0}%`;
+  saveIndicator.textContent = '';
 }
 
-// ----------------- Submit window logic (20:30 - 22:30 local time)
-function isWithinSubmitWindow(now){
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(),20,30,0);
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(),22,30,0);
-  return now>=start && now<=end;
+/* ----------------- Auto-submit at 23:59 Dhaka ----------------- */
+function tryAutoSubmitForDhakaToday(){
+  const dhNow = getDhakaNow();
+  const closeTime = new Date(dhNow.getFullYear(), dhNow.getMonth(), dhNow.getDate(), 23, 59, 0);
+  const key = ymdKey(closeTime);
+  if(dhNow >= closeTime){
+    if(missionData[key] && !missionData[key].submitted && lastAutoSubmittedDhakaKey !== key){
+      missionData[key].submitted = true;
+      missionData[key].submittedAt = (new Date()).toISOString();
+      missionData[key].efficiency = calculateEfficiencyFromSessions(missionData[key]);
+      lastAutoSubmittedDhakaKey = key;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(missionData));
+      renderCalendar(viewMonth, viewYear);
+      updateMonthSummary(viewMonth, viewYear);
+      if(activeKey === key) renderSessions();
+      console.log('Auto-submitted Dhaka day:', key);
+      // Optionally: apply punishment logic if mandatory sessions not met (placeholder)
+      // check fixed sessions completion
+      try {
+        const data = missionData[key];
+        const filled = (Array.isArray(data.sessions) ? data.sessions.filter(s=>s!==null&&s!==undefined&&s!=='').length : 0);
+        if(filled < FIXED_SESSIONS) {
+          console.warn('You missed mandatory sessions today — apply punishment if configured.');
+        }
+      } catch(e){}
+    }
+  }
 }
-function updateSubmitBtnVisibility() {
-    submitBtn.style.display = 'inline-block'; // always visible
-    submitBtn.disabled = todaysData.submitted;  // disable if already submitted
-}
+setInterval(tryAutoSubmitForDhakaToday, 20*1000);
+tryAutoSubmitForDhakaToday();
 
-submitBtn.addEventListener('click', ()=>{
-  // finalize day: set submitted true, set submittedAt and lock
-  todaysData.submitted = true; todaysData.submittedAt = (new Date()).toISOString();
-  // ensure efficiency recalculated
-  todaysData.efficiency = calculateEfficiencyFromSessions(todaysData);
-  missionData[todayKey] = todaysData; saveStorage(missionData);
-  renderSessions(); renderCalendar(viewMonth, viewYear);
-  updateSubmitBtnVisibility(); updateMonthSummary(viewMonth, viewYear);
-  alert('Day submitted! Nice job — efficiency saved to calendar.');
-});
-
-// ----------------- Calendar render & month summary -----------------
+/* ----------------- Color function (fixed blanks neutral) ----------------- */
 function colorForDay(data){
   if(!data) return '#151618';
-  if(data.historical){ // brownish
-    return 'hsl(25 45% 28%)'; // brown
-  }
-  const sess = data.sessions || [];
-  const filled = sess.filter(s => s!==null && s!==undefined && s!=='' ).length;
+  if(data.historical) return 'hsl(25 45% 28%)';
+  const sess = Array.isArray(data.sessions) ? data.sessions : [];
+  const filled = sess.filter(s => s!==null && s!==undefined && s!=='').length;
+  // If there are no sessions and not submitted => neutral
+  if(filled === 0 && !data.submitted) return '#151618';
   const total = Math.max(sess.length, 1);
-  const progress = filled/total; // 0..1
-
-  if(!data.submitted){
-    // red (0) -> orange (30) -> yellowish
-    const hue = Math.round(0 + progress*30);
-    return `hsl(${hue} 80% 35%)`;
-  } else {
-    // combine progress 60% and efficiency 40%
-    const comb = progress*0.6 + ( (data.efficiency||0)/100 )*0.4;
+  const progress = filled / total;
+  if(data.submitted){
+    // submitted => mix sessions-count (relative to 6) and efficiency
+    const countFactor = Math.min(sess.length/6, 1); // sessions >=6 -> 1 (green)
+    const comb = (countFactor * 0.6) + (((data.efficiency||0)/100) * 0.4);
     const hue = Math.round(comb * 120); // 0..120 (red->green)
     return `hsl(${hue} 70% 35%)`;
+  } else {
+    // in-progress: red->orange by progress
+    const hue = Math.round(0 + progress*30);
+    return `hsl(${hue} 80% 40%)`;
   }
 }
 
-function titleForDay(data){
-  if(!data) return '';
-  const sess = data.sessions || [];
-  const filled = sess.filter(s => s!==null && s!==undefined && s!=='' ).length;
-  const total = Math.max(sess.length, 1);
-  if(data.submitted) return `Submitted — Eff: ${data.efficiency || 0}% — Sessions: ${filled}/${total}`;
-  if(filled>0) return `In progress — ${filled}/${total} sessions filled`;
-  if(data.historical) return `No study data (historical)`;
-  return `No data`;
-}
+/* Tooltip details */
 function detailsTooltipText(data){
   if(!data) return '';
   const lines = [];
-  const sess = data.sessions || [];
-  sess.forEach((s,i) => {
-    lines.push(`Session ${i+1}: ${ (s===null || s===undefined || s==='' ) ? '—' : s + '/10' }`);
-  });
+  const sess = Array.isArray(data.sessions) ? data.sessions : [];
+  sess.forEach((s,i)=> lines.push(`Session ${i+1}: ${(s===null||s===undefined||s==='')?'—':s + '/10'}`));
   lines.push(`Efficiency: ${data.efficiency ?? 0}%`);
   lines.push(`Submitted: ${data.submitted ? 'Yes' : 'No'}`);
-  return lines.join('\n'); // <-- fixed here
+  return lines.join('\n');
 }
 
+/* ----------------- Calendar rendering ----------------- */
 function renderCalendar(month, year){
-  daysContainer.innerHTML=''; monthNameEl.textContent = `${months[month]} ${year}`;
+  daysContainer.innerHTML = '';
+  monthNameEl.textContent = `${months[month]} ${year}`;
   const firstDayIndex = new Date(year, month, 1).getDay();
   const lastDate = new Date(year, month+1, 0).getDate();
-  // blank slots
+
   for(let i=0;i<firstDayIndex;i++){ const b=document.createElement('div'); b.className='day empty'; daysContainer.appendChild(b); }
+
+  const dhNow = getDhakaNow();
+  const dhTodayKey = ymdKey(dhNow);
 
   for(let d=1; d<=lastDate; d++){
     const dateObj = new Date(year, month, d);
     const key = `${dateObj.getFullYear()}-${dateObj.getMonth()+1}-${dateObj.getDate()}`;
     const data = missionData[key];
-    const div = document.createElement('div'); div.className='day';
-    const num = document.createElement('div'); num.className='num'; num.textContent=d; div.appendChild(num);
+    const div = document.createElement('div'); div.className='day'; div.setAttribute('data-key', key);
+    const num = document.createElement('div'); num.className='num'; num.textContent = d; div.appendChild(num);
 
-    if(data && data.submitted){
+    if(key === dhTodayKey){
+      div.classList.add('today');
+      const live = missionData[dhTodayKey] || {sessions:[],efficiency:0,submitted:false};
+      const filled = (Array.isArray(live.sessions)? live.sessions.filter(s => s!==null && s!==undefined && s!=='').length : 0);
+      const info = document.createElement('div'); info.className='info';
+      info.textContent = live.submitted ? `${live.efficiency||0}% efficiency` : `Progress: ${filled}/${Math.max(live.sessions.length,1)}`;
+      div.appendChild(info);
+      // orange running day
+      div.style.background = `hsl(25 85% 40%)`;
+    } else if(data && data.submitted){
       const eff = document.createElement('div'); eff.className='info'; eff.textContent = `${data.efficiency||0}% efficiency`;
       div.appendChild(eff);
       div.classList.add('submitted');
@@ -336,16 +548,9 @@ function renderCalendar(month, year){
       div.appendChild(info);
       div.style.background = colorForDay(data);
       div.classList.add('pending');
-    } else if(key === todayKey){
-      div.classList.add('today');
-      const live = missionData[todayKey] || {sessions:[],efficiency:0,submitted:false};
-      const info = document.createElement('div'); info.className='info';
-      const filled = (live.sessions||[]).filter(s => s!==null && s!==undefined && s!=='').length;
-      info.textContent = live.submitted ? `${live.efficiency||0}% efficiency` : `Progress: ${filled}/${Math.max(live.sessions.length,1)}`;
-      div.appendChild(info);
-      div.style.background = colorForDay(live);
     } else if(data && !data.submitted){
-      const info = document.createElement('div'); info.className='info'; info.textContent = `Saved — ${ (data.sessions||[]).filter(s => s!==null && s!==undefined && s!=='').length }/ ${Math.max((data.sessions||[]).length,1)}`;
+      const info = document.createElement('div'); info.className='info';
+      info.textContent = `Saved — ${ (Array.isArray(data.sessions) ? data.sessions.filter(s => s!==null && s!==undefined && s!=='').length : 0) }/ ${Math.max((Array.isArray(data.sessions) ? data.sessions.length : 1),1) }`;
       div.appendChild(info);
       div.style.background = colorForDay(data);
       div.classList.add('pending');
@@ -353,83 +558,184 @@ function renderCalendar(month, year){
       div.style.background = '#151618';
     }
 
-    // future locked visual
-    const now = new Date();
-    if(dateObj > now) div.classList.add('locked');
+    // future locked relative to Dhaka day
+    const nowDh = getDhakaNow();
+    if(dateObj > new Date(nowDh.getFullYear(), nowDh.getMonth(), nowDh.getDate())){ div.classList.add('locked'); div.title = 'Future - locked'; }
 
-    // tooltip on hover
+    // tooltip
     div.addEventListener('mouseenter', (e)=>{
       const txt = detailsTooltipText(data);
       if(!txt) return;
       tooltip.textContent = txt; tooltip.style.display='block';
-      const r = e.target.getBoundingClientRect();
-      tooltip.style.left = (r.right + 8) + 'px'; tooltip.style.top = (r.top) + 'px';
+      const padding=12; const vw=window.innerWidth; const vh=window.innerHeight;
+      const rect = e.currentTarget.getBoundingClientRect();
+      let left = rect.right + 8; let top = rect.top;
+      if(left + 320 > vw) left = rect.left - 8 - 320;
+      if(left < padding) left = padding;
+      if(top + 120 > vh) top = Math.max(padding, vh - 140);
+      tooltip.style.left = left + 'px'; tooltip.style.top = top + 'px';
     });
-    div.addEventListener('mouseleave', ()=>{ tooltip.style.display='none'; });
+    div.addEventListener('mouseleave', ()=> tooltip.style.display='none');
+
+    // click loads day into panel (unless future)
+    div.addEventListener('click', ()=>{
+      if(div.classList.contains('locked')) return;
+      const k = div.getAttribute('data-key');
+      if(!k) return;
+      activeKey = k;
+      loadDayPanel(k);
+    });
 
     daysContainer.appendChild(div);
   }
 }
 
+/* ----------------- Month summary & analysis ----------------- */
 function updateMonthSummary(month, year){
-  // compute total sessions in the month and estimated hours (1 session = 50 minutes) and average efficiency across submitted days
-  let totalSessions = 0; let sumEfficiency = 0; let effCount=0;
-  const yearVal = year;
+  let totalSessions = 0, totalPureMinutes = 0, totalNormalMinutes = 0, sumEff = 0, effCount = 0;
   for(const k in missionData){
-    const parts = k.split('-'); const y = Number(parts[0]); const m = Number(parts[1]);
-    if(y===yearVal && m===month+1){
+    const parts = k.split('-'); if(parts.length!==3) continue;
+    const y = Number(parts[0]), m = Number(parts[1]);
+    if(y === year && m === month+1){
       const d = missionData[k];
       if(d && Array.isArray(d.sessions)){
-        const filled = d.sessions.filter(s => s!==null && s!==undefined && s!=='' ).length;
+        const filled = d.sessions.filter(s => s!==null && s!==undefined && s!=='').length;
         totalSessions += filled;
+        totalNormalMinutes += filled * 50;
+        d.sessions.forEach(s => { if(s===null||s===undefined||s==='') return; const r = Number(s); if(isNaN(r)) return; totalPureMinutes += (r>=8 ? 50 : (50*(r/8))); });
       }
-      if(d && d.submitted){ sumEfficiency += (d.efficiency||0); effCount++; }
+      if(d && d.submitted){ sumEff += (d.efficiency||0); effCount++; }
     }
   }
-  const totalMinutes = totalSessions * 50;
-  const hours = Math.floor(totalMinutes/60);
-  const mins = totalMinutes % 60;
-  const hoursStr = `${hours}h ${mins}m`;
-  const avgEff = effCount>0? Math.round(sumEfficiency/effCount) : 0;
   monthSessionsEl.textContent = totalSessions;
-  monthHoursEl.textContent = hoursStr;
-  monthEffEl.textContent = `${avgEff}%`;
+  monthPureEl.textContent = minutesToHrsMins(totalPureMinutes);
+  monthNormalEl.textContent = minutesToHrsMins(totalNormalMinutes);
+  kpiTotal.textContent = totalSessions;
+  kpiPure.textContent = monthPureEl.textContent;
+  kpiNormal.textContent = monthNormalEl.textContent;
+  kpiAvg.textContent = `${effCount>0?Math.round(sumEff/effCount):0}%`;
+  kpiDetails.textContent = `Submitted days: ${effCount}`;
 }
 
-// ----------------- Initial render -----------------
+/* ----------------- Panel load ----------------- */
+function loadDayPanel(key){
+  if(!missionData[key]) missionData[key] = { sessions: [], efficiency: 0, submitted: false, historical:false };
+  const parts = key.split('-'); const y = Number(parts[0]); const m = Number(parts[1]); const d = Number(parts[2]);
+  const dateObj = new Date(y, m-1, d);
+  panelDate.textContent = formatDateLong(dateObj);
+  panelTitle.textContent = `Daily Panel — ${dateObj.getDate()} ${months[dateObj.getMonth()]}`;
+  renderSessions(); renderEfficiencyInPanel(); updateMonthSummary(viewMonth, viewYear);
+  if(missionData[key].submitted) saveIndicator.textContent = 'Locked (submitted)'; else saveIndicator.textContent = '';
+}
+
+/* ----------------- Import / Export / Share ----------------- */
+exportBtn.addEventListener('click', ()=>{
+  const m = viewMonth + 1; const y = viewYear; const out = {};
+  for(const k in missionData){
+    const parts = k.split('-'); if(parts.length!==3) continue;
+    const ky = Number(parts[0]), km = Number(parts[1]);
+    if(ky===y && km===m) out[k] = missionData[k];
+  }
+  const blob = new Blob([JSON.stringify(out, null, 2)], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = `mission_${y}_${m}.json`; a.click(); URL.revokeObjectURL(url);
+});
+
+importBtn.addEventListener('click', ()=> fileInput.click());
+fileInput.addEventListener('change', async (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  try{
+    const text = await f.text(); const parsed = JSON.parse(text);
+    const m = viewMonth + 1; const y = viewYear;
+    if(!confirm(`Import will replace data for ${months[viewMonth]} ${viewYear} with the file's contents. Continue?`)) return;
+    for(const k of Object.keys(Object.assign({}, missionData))){
+      const parts = k.split('-'); if(parts.length!==3) continue;
+      const ky = Number(parts[0]), km = Number(parts[1]);
+      if(ky===y && km===m) delete missionData[k];
+    }
+    for(const k in parsed){
+      const parts = k.split('-'); if(parts.length===3){
+        const ky = Number(parts[0]), km = Number(parts[1]);
+        if(ky===y && km===m) missionData[k] = parsed[k];
+      }
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(missionData));
+    renderCalendar(viewMonth, viewYear); updateMonthSummary(viewMonth, viewYear);
+    alert('Import complete for this month.');
+  } catch(err){ alert('Import failed: Invalid JSON'); console.error(err); }
+  fileInput.value = '';
+});
+
+/* Share - try native share with file, fallback to copying JSON and attempting calendar image */
+shareBtn.addEventListener('click', async ()=>{
+  const m = viewMonth + 1; const y = viewYear; const out = {};
+  for(const k in missionData){
+    const parts = k.split('-'); if(parts.length!==3) continue;
+    const ky = Number(parts[0]), km = Number(parts[1]);
+    if(ky===y && km===m) out[k] = missionData[k];
+  }
+  const jsonStr = JSON.stringify(out, null, 2);
+  try{
+    const blob = new Blob([jsonStr], {type:'application/json'});
+    const filesArray = [new File([blob], `mission_${y}_${m}.json`, {type:'application/json'})];
+    if(navigator.canShare && navigator.canShare({files: filesArray})){
+      await navigator.share({ files: filesArray, title: `Mission ${y}-${m}`, text: 'Monthly data' });
+      alert('Shared via native share.');
+      return;
+    }
+  }catch(e){ console.warn('native share failed', e); }
+
+  try{ await navigator.clipboard.writeText(jsonStr); alert('Month JSON copied to clipboard (fallback).'); } catch(e){ console.warn('clipboard failed', e); alert('Could not share: no supported method available.'); }
+
+  // Best-effort: try to copy calendar container as SVG snapshot to clipboard (may fail in some browsers)
+  try{
+    const cal = document.querySelector('.calendar-container');
+    const cloned = cal.cloneNode(true);
+    // inline styles are not perfect, but this is best-effort
+    const wrapper = document.createElement('div'); wrapper.appendChild(cloned);
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${cal.offsetWidth}' height='${cal.offsetHeight}'><foreignObject width='100%' height='100%'>${new XMLSerializer().serializeToString(wrapper)}</foreignObject></svg>`;
+    const svgBlob = new Blob([svg], {type:'image/svg+xml;charset=utf-8'});
+    const item = new ClipboardItem({ 'image/svg+xml': svgBlob });
+    await navigator.clipboard.write([item]);
+    console.log('Calendar image copied to clipboard (SVG).');
+  } catch(e){ console.warn('Copying image to clipboard failed', e); }
+});
+
+/* ----------------- Initial render & navigation ----------------- */
 function loadTodayPanel(){
-  todaysData = missionData[todayKey] || {sessions:[],efficiency:0,submitted:false};
-  if(!Array.isArray(todaysData.sessions)) todaysData.sessions = [];
-  renderSessions(); renderEfficiencyInPanel();
-  updateSubmitBtnVisibility();
-  updateMonthSummary(viewMonth, viewYear);
+  dhakaNow = getDhakaNow();
+  todayDhakaKey = ymdKey(dhakaNow);
+  if(!missionData[todayDhakaKey]) missionData[todayDhakaKey] = { sessions: [], efficiency: 0, submitted: false, historical:false };
+  activeKey = todayDhakaKey;
+  // ensure fixed sessions for today exist on startup
+  if(isDhakaTodayKey(activeKey) && (!Array.isArray(missionData[activeKey].sessions) || missionData[activeKey].sessions.length < FIXED_SESSIONS)){
+    missionData[activeKey].sessions = missionData[activeKey].sessions || [];
+    while(missionData[activeKey].sessions.length < FIXED_SESSIONS) missionData[activeKey].sessions.push(null);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(missionData));
+  }
+  renderCalendar(viewMonth, viewYear); loadDayPanel(activeKey); updateMonthSummary(viewMonth, viewYear);
 }
 
-renderCalendar(viewMonth, viewYear); loadTodayPanel();
+renderCalendar(viewMonth, viewYear);
+loadTodayPanel();
 
-// navigation
-prevBtn.addEventListener('click', ()=>{ if(viewMonth===0){viewMonth=11;viewYear--;} else viewMonth--; renderCalendar(viewMonth, viewYear); updateMonthSummary(viewMonth, viewYear); });
-nextBtn.addEventListener('click', ()=>{ if(viewMonth===11){viewMonth=0;viewYear++;} else viewMonth++; renderCalendar(viewMonth, viewYear); updateMonthSummary(viewMonth, viewYear); });
+prevBtn.addEventListener('click', ()=>{ if(viewMonth===0){ viewMonth=11; viewYear--; } else viewMonth--; renderCalendar(viewMonth, viewYear); updateMonthSummary(viewMonth, viewYear); });
+nextBtn.addEventListener('click', ()=>{ if(viewMonth===11){ viewMonth=0; viewYear++; } else viewMonth++; renderCalendar(viewMonth, viewYear); updateMonthSummary(viewMonth, viewYear); });
 
-// show submit button if time window
-
-setInterval(updateSubmitBtnVisibility, 30*1000);
-
-
-// midnight rollover
+/* Dhaka midnight rollover & auto-submit check */
 setInterval(()=>{
-  const now = new Date();
-  const newKey = ymdKey(now);
-  if(newKey !== todayKey){
-    today = now; todayKey = newKey; panelDate.textContent = formatDateLong(now);
-    missionData = loadStorage();
-    if(!missionData[todayKey]) missionData[todayKey] = {sessions:[],efficiency:0,submitted:false};
+  const prev = todayDhakaKey;
+  dhakaNow = getDhakaNow();
+  todayDhakaKey = ymdKey(dhakaNow);
+  if(todayDhakaKey !== prev){
+    if(!missionData[todayDhakaKey]) missionData[todayDhakaKey] = { sessions: [], efficiency: 0, submitted: false, historical:false };
     loadTodayPanel(); renderCalendar(viewMonth, viewYear);
   }
+  tryAutoSubmitForDhakaToday();
 }, 60*1000);
 
-// initial default sessions
-if(todaysData.sessions.length===0 && !todaysData.submitted){ addSession(null); addSession(null); addSession(null); }
+/* expose debug variable */
+window.__missionData = missionData;
 
 </script>
 </body>
