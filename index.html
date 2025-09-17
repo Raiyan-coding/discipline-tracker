@@ -165,7 +165,7 @@ body{
 }
 .social a:hover{ background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02)); color:#fff; transform:translateY(-3px); border-color:rgba(255,255,255,0.08) }
 
-/* Analysis cards */
+ /* Analysis cards */
 .card{padding:14px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
 .kpi{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 0;color:var(--muted)}
 .kpi div:last-child{font-weight:800;color:#fff}
@@ -339,7 +339,7 @@ function formatDateLong(d){ return `${d.getDate()} ${months[d.getMonth()]} ${d.g
 
 function calculateEfficiencyFromSessions(data){
   const sess = Array.isArray(data.sessions) ? data.sessions : [];
-  const filled = sess.filter(s => s!==null && s!==undefined && s!=='');
+  const filled = sess.filter(s => s!==null && s!==undefined && s!=='' && !isNaN(Number(s)) );
   if(filled.length===0) return 0;
   const avg = filled.reduce((a,b)=> a + Number(b), 0) / filled.length;
   return Math.round((avg/10)*100);
@@ -371,7 +371,8 @@ function isPastRelativeToDhaka(key){
   const dhNow = getDhakaNow(); const dhToday = new Date(dhNow.getFullYear(), dhNow.getMonth(), dhNow.getDate());
   return day < dhToday;
 }
-function isEditableDay(key){ const d = missionData[key] || {submitted:false}; return isDhakaTodayKey(key) && !d.submitted; }
+// allow editing for today's key even if submitted
+function isEditableDay(key){ return isDhakaTodayKey(key); }
 
 function renderSessionItem(index, value){
   const wrap = document.createElement('div'); wrap.className='session'; wrap.setAttribute('role','listitem');
@@ -393,7 +394,17 @@ function renderSessionItem(index, value){
     const val = raw === '' ? null : Math.max(0, Math.min(10, Number(raw)));
     if(!missionData[activeKey]) missionData[activeKey] = {sessions:[],efficiency:0,submitted:false};
     missionData[activeKey].sessions[index] = (val===null? null : val);
+
+    // mark update as "submitted" (so color updates immediately) but DO NOT lock editing
+    missionData[activeKey].submitted = true;
+    missionData[activeKey].submittedAt = (new Date()).toISOString();
     missionData[activeKey].efficiency = calculateEfficiencyFromSessions(missionData[activeKey]);
+
+    // immediate local render so color changes instantly while debounce handles actual saving
+    renderCalendar(viewMonth, viewYear);
+    updateMonthSummary(viewMonth, viewYear);
+    renderEfficiencyInPanel();
+
     scheduleSave();
   });
 
@@ -401,6 +412,17 @@ function renderSessionItem(index, value){
     if(!isEditableDay(activeKey)) return;
     if(index < FIXED_SESSIONS) return;
     missionData[activeKey].sessions.splice(index,1);
+
+    // mark update as "submitted" after delete
+    missionData[activeKey].submitted = true;
+    missionData[activeKey].submittedAt = (new Date()).toISOString();
+    missionData[activeKey].efficiency = calculateEfficiencyFromSessions(missionData[activeKey]);
+
+    // immediate render to show color change
+    renderCalendar(viewMonth, viewYear);
+    updateMonthSummary(viewMonth, viewYear);
+    renderEfficiencyInPanel();
+
     scheduleSave();
     renderSessions();
   });
@@ -434,6 +456,17 @@ function addSession(value=null){
   if(!isEditableDay(activeKey)) return;
   if(!missionData[activeKey]) missionData[activeKey] = {sessions:[],efficiency:0,submitted:false};
   missionData[activeKey].sessions.push(value);
+
+  // mark update as "submitted" after adding a session
+  missionData[activeKey].submitted = true;
+  missionData[activeKey].submittedAt = (new Date()).toISOString();
+  missionData[activeKey].efficiency = calculateEfficiencyFromSessions(missionData[activeKey]);
+
+  // immediate render so user sees color change fast
+  renderCalendar(viewMonth, viewYear);
+  updateMonthSummary(viewMonth, viewYear);
+  renderEfficiencyInPanel();
+
   scheduleSave();
   renderSessions();
 }
@@ -445,7 +478,7 @@ function renderEfficiencyInPanel(){
   saveIndicator.textContent = '';
 }
 
-/* ----------------- Auto-submit at 23:59 Dhaka ----------------- */
+/* ----------------- Auto-submit at 23:59 Dhaka (kept but no longer necessary) ----------------- */
 function tryAutoSubmitForDhakaToday(){
   const dhNow = getDhakaNow();
   const closeTime = new Date(dhNow.getFullYear(), dhNow.getMonth(), dhNow.getDate(), 23, 59, 0);
@@ -461,8 +494,6 @@ function tryAutoSubmitForDhakaToday(){
       updateMonthSummary(viewMonth, viewYear);
       if(activeKey === key) renderSessions();
       console.log('Auto-submitted Dhaka day:', key);
-      // Optionally: apply punishment logic if mandatory sessions not met (placeholder)
-      // check fixed sessions completion
       try {
         const data = missionData[key];
         const filled = (Array.isArray(data.sessions) ? data.sessions.filter(s=>s!==null&&s!==undefined&&s!=='').length : 0);
@@ -476,25 +507,41 @@ function tryAutoSubmitForDhakaToday(){
 setInterval(tryAutoSubmitForDhakaToday, 20*1000);
 tryAutoSubmitForDhakaToday();
 
-/* ----------------- Color function (fixed blanks neutral) ----------------- */
+/* ----------------- Color function (UPDATED to use filled session count & efficiency) ----------------- */
 function colorForDay(data){
   if(!data) return '#151618';
   if(data.historical) return 'hsl(25 45% 28%)';
   const sess = Array.isArray(data.sessions) ? data.sessions : [];
   const filled = sess.filter(s => s!==null && s!==undefined && s!=='').length;
+  const efficiency = (data.efficiency || 0); // 0..100
+
   // If there are no sessions and not submitted => neutral
   if(filled === 0 && !data.submitted) return '#151618';
-  const total = Math.max(sess.length, 1);
-  const progress = filled / total;
+
   if(data.submitted){
-    // submitted => mix sessions-count (relative to 6) and efficiency
-    const countFactor = Math.min(sess.length/6, 1); // sessions >=6 -> 1 (green)
-    const comb = (countFactor * 0.6) + (((data.efficiency||0)/100) * 0.4);
-    const hue = Math.round(comb * 120); // 0..120 (red->green)
-    return `hsl(${hue} 70% 35%)`;
+    // Two main factors:
+    // 1) filled sessions count relative to 6 (primary)
+    // 2) efficiency (secondary, adjusts hue within red/green ranges)
+    if(filled < FIXED_SESSIONS){
+      // Predominantly red/orange. Efficiency nudges hue slightly towards orange if high.
+      // Map efficiency 0..100 -> hue 0..30 (0 red, 30 orange)
+      const hue = Math.round((efficiency/100) * 30);
+      // More intense red when fewer sessions: reduce lightness a bit
+      const lightness = 38 - Math.min(10, (FIXED_SESSIONS - filled) * 2); // fewer sessions -> slightly darker
+      return `hsl(${hue} 80% ${lightness}%)`;
+    } else {
+      // filled >= FIXED_SESSIONS -> predominantly green.
+      // Map efficiency 0..100 -> hue 90..120 (nice green range)
+      const hue = 90 + Math.round((efficiency/100) * 30);
+      // Better efficiency -> brighter lightness
+      const lightness = 30 + Math.round((efficiency/100) * 12); // 30..42
+      return `hsl(${hue} 72% ${lightness}%)`;
+    }
   } else {
-    // in-progress: red->orange by progress
-    const hue = Math.round(0 + progress*30);
+    // in-progress: subtle orange based on progress (as before)
+    const total = Math.max(sess.length, 1);
+    const progress = filled / total;
+    const hue = Math.round(15 + progress*20); // 15..35
     return `hsl(${hue} 80% 40%)`;
   }
 }
@@ -536,8 +583,13 @@ function renderCalendar(month, year){
       const info = document.createElement('div'); info.className='info';
       info.textContent = live.submitted ? `${live.efficiency||0}% efficiency` : `Progress: ${filled}/${Math.max(live.sessions.length,1)}`;
       div.appendChild(info);
-      // orange running day
-      div.style.background = `hsl(25 85% 40%)`;
+      // FIXED: if today's day has been marked submitted (or updated), use colorForDay so color updates live.
+      if(live && live.submitted){
+        div.style.background = colorForDay(live);
+      } else {
+        // running (not yet submitted) day: keep visible orange
+        div.style.background = `hsl(25 85% 40%)`;
+      }
     } else if(data && data.submitted){
       const eff = document.createElement('div'); eff.className='info'; eff.textContent = `${data.efficiency||0}% efficiency`;
       div.appendChild(eff);
@@ -625,7 +677,20 @@ function loadDayPanel(key){
   panelDate.textContent = formatDateLong(dateObj);
   panelTitle.textContent = `Daily Panel — ${dateObj.getDate()} ${months[dateObj.getMonth()]}`;
   renderSessions(); renderEfficiencyInPanel(); updateMonthSummary(viewMonth, viewYear);
-  if(missionData[key].submitted) saveIndicator.textContent = 'Locked (submitted)'; else saveIndicator.textContent = '';
+
+  // show last updated Dhaka time if available
+  const data = missionData[key];
+  if(data && data.submitted && data.submittedAt){
+    try {
+      const t = new Date(data.submittedAt);
+      const dhStr = t.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' });
+      saveIndicator.textContent = `Last updated: ${dhStr}`;
+    } catch(e){
+      saveIndicator.textContent = 'Submitted';
+    }
+  } else {
+    saveIndicator.textContent = '';
+  }
 }
 
 /* ----------------- Import / Export / Share ----------------- */
@@ -666,7 +731,6 @@ fileInput.addEventListener('change', async (e)=>{
   fileInput.value = '';
 });
 
-/* Share - try native share with file, fallback to copying JSON and attempting calendar image */
 shareBtn.addEventListener('click', async ()=>{
   const m = viewMonth + 1; const y = viewYear; const out = {};
   for(const k in missionData){
