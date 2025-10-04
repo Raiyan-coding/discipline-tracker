@@ -6,20 +6,20 @@
 <title>Mission Tracker v4 — Daily Panel</title>
 <style>
 :root{
-  --bg:#0f1115;
-  --card:#14161a;
+  --bg:#3a185f;
+  --card:#17151f;
   --muted:#9aa0a6;
   --muted-2:#8b9499;
   --accent:#4caf50;
   --accent-2:#2b6ef6;
   --accent-3:#f59e0b;
-  --glass: rgba(255,255,255,0.03);
+  --glass: rgba(255, 225, 225, 0.03);
   --radius:14px;
   --shadow: 0 10px 30px rgba(0,0,0,0.55);
   --glass-border: rgba(255,255,255,0.03);
-  --scrollbar-bg: rgba(255,255,255,0.05);
-  --scrollbar-thumb: rgba(255,255,255,0.2);
-  --scrollbar-thumb-hover: rgba(255,255,255,0.35);
+  --scrollbar-bg: rgba(0, 8, 94, 0.05);
+  --scrollbar-thumb: rgba(59, 116, 221, 0.2);
+  --scrollbar-thumb-hover: rgba(28, 166, 168, 0.35);
 }
 
 /* reset & base */
@@ -83,7 +83,7 @@ h2,h3,h4,strong{color:#fff;margin:0}
 
 /* Day cell */
 .day{
-  background:linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));
+  background:linear-gradient(180deg, rgba(60, 51, 51, 0.015), rgba(80, 66, 66, 0.01));
   padding:12px;
   border-radius:10px;
   min-height:70px;
@@ -189,6 +189,7 @@ h2,h3,h4,strong{color:#fff;margin:0}
   .session input[type=number]{width:60px;font-size:13px;padding:6px}
   .social a{padding:7px 8px;font-size:13px}
 }
+
 </style>
 
 </head>
@@ -1210,3 +1211,4 @@ try{ renderCalendar(viewMonth, viewYear); loadTodayPanel(); } catch(e){ console.
 
 </body>
 </html>
+
