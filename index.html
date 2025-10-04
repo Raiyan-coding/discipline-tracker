@@ -276,6 +276,8 @@ h2,h3,h4,strong{color:#fff;margin:0}
       <div style="margin-top:8px;color:var(--muted);font-size:13px">Target = <strong id="uiDailyTarget">12</strong>, Mandatory = <strong id="uiMandatory">8</strong></div>
     </div>
 
+
+
     <!-- Bar chart: distribution of days by session count -->
     <div class="card" style="margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -288,6 +290,11 @@ h2,h3,h4,strong{color:#fff;margin:0}
       <div id="barLegend" style="margin-top:8px;color:var(--muted);font-size:13px">Legend: red &lt;6 — yellow 6..7 — green 8..9 — skyblue 10..11 — blue 12..15 — purple 16+</div>
     </div>
 
+
+
+
+
+    
     <!-- Donut chart: success vs partial vs fail vs no-data -->
     <div class="card" style="margin-bottom:12px;display:flex;gap:12px;align-items:center;">
       <div style="flex:1">
@@ -331,6 +338,44 @@ h2,h3,h4,strong{color:#fff;margin:0}
           <button id="closeAnalysisBtn" class="btn">Close</button>
         </div>
       </header>
+
+
+
+
+
+
+
+      <!-- Progress bar (put in the quick-stats area / near top of right column) -->
+<div class="card" style="margin-bottom:12px;">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <strong>Monthly progress</strong>
+    <div style="font-size:12px;color:var(--muted)"><span id="monthlyProgressLabel">0 / 310 sessions</span></div>
+  </div>
+  <div id="monthlyProgressWrap" style="height:22px;background:linear-gradient(90deg,#111,#0b0c0e);border-radius:10px;margin-top:10px;padding:3px;">
+    <div id="monthlyProgressBar" style="height:100%; width:0%; border-radius:8px; background: linear-gradient(90deg,#ff4d4f,#ffb74d); transition: width 900ms ease, background 600ms ease;"></div>
+  </div>
+</div>
+
+<!-- Add inside the modal 'Full Analysis' after the distribution bar -->
+<div class="card" style="margin-bottom:12px;">
+  <strong>Efficiency rating distribution (avg efficiency per day)</strong>
+  <div style="height:260px; max-height:320px; margin-top:8px;">
+    <canvas id="effDistCanvasModal" style="width:100%;height:100%"></canvas>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom:12px;">
+  <strong>Radar summary</strong>
+  <div style="height:260px; max-height:320px; margin-top:8px;">
+    <canvas id="radarCanvasModal" style="width:100%;height:100%"></canvas>
+  </div>
+</div>
+
+
+
+
+
+
 
       <main class="analysis-modal-body">
         <!-- Top KPIs -->
@@ -394,21 +439,16 @@ h2,h3,h4,strong{color:#fff;margin:0}
 <script>
 /* ----------------- CONFIG ----------------- */
 const FIXED_SESSIONS = 8;   // mandatory
-const DAILY_TARGET = 12;    // target
+const DAILY_TARGET = 12;    // daily target
 const STORAGE_KEY = 'missionData';
+const MONTHLY_TARGET = 310; // <-- your monthly sessions target (change as you like)
 const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 /* ----------------- Time helpers ----------------- */
-function getDhakaNow(){
-  // returns current Date in Asia/Dhaka timezone (as Date object)
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
-}
-function ymdKey(d){
-  return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
-}
+function getDhakaNow(){ return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Dhaka' })); }
+function ymdKey(d){ return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}` }
 
-/* ----------------- Safe DOM getters ----------------- */
-/* Use document.getElementById but store possibly-null refs and always write safely */
+/* ----------------- Safe DOM refs ----------------- */
 const daysContainer = document.getElementById('days');
 const monthNameEl = document.getElementById('monthName');
 const prevBtn = document.getElementById('prev');
@@ -431,7 +471,6 @@ const exportBtn = document.getElementById('exportBtn');
 const shareBtn = document.getElementById('shareBtn');
 const fileInput = document.getElementById('fileInput');
 
-/* analysis / modal elements */
 const openAnalysisBtn = document.getElementById('openAnalysisBtn');
 const analysisModal = document.getElementById('analysisModal');
 const closeAnalysisBtn = document.getElementById('closeAnalysisBtn');
@@ -439,14 +478,6 @@ const prevMonthModal = document.getElementById('prevMonthModal');
 const nextMonthModal = document.getElementById('nextMonthModal');
 const modalMonthLabel = document.getElementById('modalMonthLabel');
 
-/* main-panel KPI refs (optional — may not exist in old markup) */
-const kpiTotal = document.getElementById('kpiTotal');
-const kpiAvg = document.getElementById('kpiAvg');
-const kpiPure = document.getElementById('kpiPure');
-const kpiNormal = document.getElementById('kpiNormal');
-const kpiDetails = document.getElementById('kpiDetails');
-
-/* modal KPI refs (safe) */
 const m_kpiTotal = document.getElementById('m_kpiTotal');
 const m_kpiAvg = document.getElementById('m_kpiAvg');
 const m_kpiPure = document.getElementById('m_kpiPure');
@@ -458,7 +489,6 @@ const m_daysGE8 = document.getElementById('m_daysGE8');
 const m_daysGE10 = document.getElementById('m_daysGE10');
 const m_daysGE12 = document.getElementById('m_daysGE12');
 
-/* small UI tiles (right column quick stats) */
 const el_daysInMonth = document.getElementById('daysInMonth');
 const el_daysGE6 = document.getElementById('daysGE6');
 const el_daysGE8 = document.getElementById('daysGE8');
@@ -472,24 +502,14 @@ const el_bestStreak = document.getElementById('bestStreak');
 const el_avgSessions = document.getElementById('avgSessions');
 const el_d10 = document.getElementById('d10');
 const el_d12 = document.getElementById('d12');
+const monthlyProgressBar = document.getElementById('monthlyProgressBar');
+const monthlyProgressLabel = document.getElementById('monthlyProgressLabel');
 
 /* ----------------- Safe utilities ----------------- */
-function safeSetText(el, txt){
-  if(!el) return;
-  try { el.textContent = txt; } catch(e) { /* ignore */ }
-}
+function safeSetText(el, txt){ if(!el) return; try{ el.textContent = txt; }catch(e){} }
 
-/* ----------------- Load / save missionData ----------------- */
-let missionData = (function(){
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY) || '{}';
-    return JSON.parse(raw);
-  } catch(e){
-    console.warn('missionData parse error', e);
-    return {};
-  }
-})();
-
+/* ----------------- Data load/save ----------------- */
+let missionData = (function(){ try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e){ console.warn('missionData parse error', e); return {}; } })();
 let viewMonth = (new Date()).getMonth();
 let viewYear = (new Date()).getFullYear();
 let dhakaNow = getDhakaNow();
@@ -497,46 +517,34 @@ let todayDhakaKey = ymdKey(dhakaNow);
 let activeKey = todayDhakaKey;
 let lastAutoSubmittedDhakaKey = null;
 
-/* Ensure today's key exists (defensive) */
+/* ensure today's key */
 if(!missionData[todayDhakaKey]) missionData[todayDhakaKey] = { sessions: [], efficiency: 0, submitted: false, historical: false };
 
-/* ----------------- Small helpers ----------------- */
-function minutesToHrsMins(mins){
-  mins = Number(mins) || 0;
-  const h = Math.floor(mins/60);
-  const m = Math.round(mins%60);
-  return `${h}h ${m}m`;
-}
-function formatDateLong(d){
-  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-}
+/* ----------------- helpers ----------------- */
+function minutesToHrsMins(mins){ mins = Number(mins) || 0; const h=Math.floor(mins/60); const m=Math.round(mins%60); return `${h}h ${m}m`; }
+function formatDateLong(d){ return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`; }
 
-/* Efficiency calculation (robust) */
 function calculateEfficiencyFromSessions(data){
   const sess = Array.isArray(data.sessions) ? data.sessions : [];
-  const valid = sess.filter(s => s!==null && s!==undefined && s!=='' && !isNaN(Number(s)));
-  if(valid.length === 0) return 0;
-  const avg = valid.reduce((a,b)=> a + Number(b), 0) / valid.length;
+  const filled = sess.filter(s => s!==null && s!==undefined && s!=='' && !isNaN(Number(s)));
+  if(filled.length === 0) return 0;
+  const avg = filled.reduce((a,b)=> a + Number(b), 0) / filled.length;
   return Math.round((avg/10)*100);
 }
 
-/* ----------------- Autosave debounce (defensive) ----------------- */
+/* ----------------- autosave debounce ----------------- */
 function scheduleSave(){
-  if(saveIndicator) safeSetText(saveIndicator, 'Saving...');
+  if(saveIndicator) saveIndicator.textContent='Saving...';
   clearTimeout(window._saveTimer);
   window._saveTimer = setTimeout(()=>{
-    try {
+    try{
       localStorage.setItem(STORAGE_KEY, JSON.stringify(missionData));
-      if(saveIndicator) safeSetText(saveIndicator, 'Saved');
-      setTimeout(()=>{ if(saveIndicator && saveIndicator.textContent === 'Saved') safeSetText(saveIndicator, ''); }, 1200);
-      // refresh UI
-      try { renderCalendar(viewMonth, viewYear); } catch(e){ console.warn('renderCalendar on save failed', e); }
-      try { updateMonthSummary(viewMonth, viewYear); } catch(e){ /* may be patched later */ }
-      try { renderEfficiencyInPanel(); } catch(e){ /* ignore */ }
-    } catch(e){
-      console.error('scheduleSave failed', e);
-      if(saveIndicator) safeSetText(saveIndicator, 'Save failed');
-    }
+      if(saveIndicator) saveIndicator.textContent='Saved';
+      setTimeout(()=>{ if(saveIndicator && saveIndicator.textContent==='Saved') saveIndicator.textContent=''; },1200);
+      renderCalendar(viewMonth, viewYear);
+      updateMonthSummary(viewMonth, viewYear);
+      renderEfficiencyInPanel();
+    }catch(e){ console.error('scheduleSave fail', e); if(saveIndicator) saveIndicator.textContent='Save failed'; }
   }, 300);
 }
 
@@ -545,115 +553,85 @@ function isDhakaTodayKey(key){ return key === ymdKey(getDhakaNow()); }
 function isEditableDay(key){ return isDhakaTodayKey(key); }
 
 function renderSessionItem(index, value){
-  const wrap = document.createElement('div');
-  wrap.className = 'session';
-  wrap.setAttribute('role','listitem');
-
-  const title = document.createElement('div'); title.className = 'title'; title.textContent = `Session ${index+1}`;
-  const input = document.createElement('input'); input.type = 'number'; input.min = 0; input.max = 10; input.step = 1;
-  input.setAttribute('aria-label', `Session ${index+1} rating`);
-  input.value = (value === null || value === undefined) ? '' : value;
-  const note = document.createElement('div'); note.className = 'note'; note.textContent = '0-10';
-  const del = document.createElement('button'); del.className = 'del'; del.title = 'Delete session'; del.textContent = '✕';
-
+  const wrap = document.createElement('div'); wrap.className='session'; wrap.setAttribute('role','listitem');
+  const title = document.createElement('div'); title.className='title'; title.textContent=`Session ${index+1}`;
+  const input = document.createElement('input'); input.type='number'; input.min=0; input.max=10; input.step=1; input.setAttribute('aria-label', `Session ${index+1} rating`);
+  input.value = (value===null||value===undefined)?'':value;
+  const note = document.createElement('div'); note.className='note'; note.textContent='0-10';
+  const del = document.createElement('button'); del.className='del'; del.title='Delete session'; del.textContent='✕';
   const editable = isEditableDay(activeKey);
   input.disabled = !editable;
-  if(index < FIXED_SESSIONS) del.style.display = 'none';
+  if(index < FIXED_SESSIONS) del.style.display='none';
   else del.style.display = editable ? 'inline-block' : 'none';
 
   input.addEventListener('input', ()=>{
     if(!isEditableDay(activeKey)) return;
     const raw = input.value;
-    const val = (raw === '') ? null : Math.max(0, Math.min(10, Number(raw)));
-    if(!missionData[activeKey]) missionData[activeKey] = { sessions: [], efficiency: 0, submitted: false };
-    missionData[activeKey].sessions[index] = (val === null ? null : val);
-
+    const val = raw === '' ? null : Math.max(0, Math.min(10, Number(raw)));
+    if(!missionData[activeKey]) missionData[activeKey] = {sessions:[],efficiency:0,submitted:false};
+    missionData[activeKey].sessions[index] = (val===null? null : val);
     missionData[activeKey].submitted = true;
     missionData[activeKey].submittedAt = (new Date()).toISOString();
     missionData[activeKey].efficiency = calculateEfficiencyFromSessions(missionData[activeKey]);
-
-    try { renderCalendar(viewMonth, viewYear); } catch(e){ console.warn('renderCalendar error', e); }
-    try { updateMonthSummary(viewMonth, viewYear); } catch(e){ /* may be patched */ }
-    try { renderEfficiencyInPanel(); } catch(e){}
-
+    renderCalendar(viewMonth, viewYear); updateMonthSummary(viewMonth, viewYear); renderEfficiencyInPanel();
     scheduleSave();
   });
 
   del.addEventListener('click', ()=>{
     if(!isEditableDay(activeKey)) return;
     if(index < FIXED_SESSIONS) return;
-    missionData[activeKey].sessions.splice(index, 1);
-
+    missionData[activeKey].sessions.splice(index,1);
     missionData[activeKey].submitted = true;
     missionData[activeKey].submittedAt = (new Date()).toISOString();
     missionData[activeKey].efficiency = calculateEfficiencyFromSessions(missionData[activeKey]);
-
-    try { renderCalendar(viewMonth, viewYear); } catch(e){}
-    try { updateMonthSummary(viewMonth, viewYear); } catch(e){}
-    try { renderEfficiencyInPanel(); } catch(e){}
-
+    renderCalendar(viewMonth, viewYear); updateMonthSummary(viewMonth, viewYear); renderEfficiencyInPanel();
     scheduleSave();
     renderSessions();
   });
 
-  wrap.appendChild(title);
-  wrap.appendChild(input);
-  wrap.appendChild(note);
-  wrap.appendChild(del);
+  wrap.appendChild(title); wrap.appendChild(input); wrap.appendChild(note); wrap.appendChild(del);
   return wrap;
 }
 
 function renderSessions(){
   if(!sessionsList) return;
-  sessionsList.innerHTML = '';
-  if(!missionData[activeKey]) missionData[activeKey] = { sessions: [], efficiency: 0, submitted: false, historical: false };
+  sessionsList.innerHTML='';
+  if(!missionData[activeKey]) missionData[activeKey] = {sessions:[],efficiency:0,submitted:false,historical:false};
   if(!Array.isArray(missionData[activeKey].sessions)) missionData[activeKey].sessions = [];
 
-  // Ensure FIXED_SESSIONS for *today only*
   if(isDhakaTodayKey(activeKey) && missionData[activeKey].sessions.length < FIXED_SESSIONS){
     const need = FIXED_SESSIONS - missionData[activeKey].sessions.length;
     for(let i=0;i<need;i++) missionData[activeKey].sessions.push(null);
     scheduleSave();
   }
 
-  missionData[activeKey].sessions.forEach((val, i) => {
-    try { sessionsList.appendChild(renderSessionItem(i, val)); }
-    catch(e){ console.warn('append session item failed', e); }
-  });
-
+  missionData[activeKey].sessions.forEach((val,i)=> sessionsList.appendChild(renderSessionItem(i,val)));
   if(missionData[activeKey].sessions.length === 0){
-    const hint = document.createElement('div'); hint.className = 'hint';
-    hint.textContent = 'No sessions yet — click + Add Session to create one.';
-    sessionsList.appendChild(hint);
+    const hint = document.createElement('div'); hint.className='hint'; hint.textContent = 'No sessions yet — click + Add Session to create one.'; sessionsList.appendChild(hint);
   }
 }
 
-function addSession(value = null){
+function addSession(value=null){
   if(!isEditableDay(activeKey)) return;
-  if(!missionData[activeKey]) missionData[activeKey] = { sessions: [], efficiency: 0, submitted: false };
+  if(!missionData[activeKey]) missionData[activeKey] = {sessions:[],efficiency:0,submitted:false};
   missionData[activeKey].sessions.push(value);
   missionData[activeKey].submitted = true;
   missionData[activeKey].submittedAt = (new Date()).toISOString();
   missionData[activeKey].efficiency = calculateEfficiencyFromSessions(missionData[activeKey]);
-
-  try { renderCalendar(viewMonth, viewYear); } catch(e){}
-  try { updateMonthSummary(viewMonth, viewYear); } catch(e){}
-  try { renderEfficiencyInPanel(); } catch(e){}
-
-  scheduleSave();
-  renderSessions();
+  renderCalendar(viewMonth, viewYear); updateMonthSummary(viewMonth, viewYear); renderEfficiencyInPanel();
+  scheduleSave(); renderSessions();
 }
 if(addSessionBtn) addSessionBtn.addEventListener('click', ()=> addSession(null));
 
 function renderEfficiencyInPanel(){
-  const d = missionData[activeKey] || { efficiency: 0 };
-  if(effVal) safeSetText(effVal, `${d.efficiency || 0}%`);
-  if(saveIndicator) safeSetText(saveIndicator, '');
+  const d = missionData[activeKey] || {efficiency:0};
+  if(effVal) effVal.textContent = `${d.efficiency || 0}%`;
+  if(saveIndicator) saveIndicator.textContent = '';
 }
 
-/* ----------------- Auto-submit at 23:59 Dhaka ----------------- */
+/* Auto-submit at 23:59 Dhaka */
 function tryAutoSubmitForDhakaToday(){
-  try {
+  try{
     const dhNow = getDhakaNow();
     const closeTime = new Date(dhNow.getFullYear(), dhNow.getMonth(), dhNow.getDate(), 23, 59, 0);
     const key = ymdKey(closeTime);
@@ -664,60 +642,54 @@ function tryAutoSubmitForDhakaToday(){
         missionData[key].efficiency = calculateEfficiencyFromSessions(missionData[key]);
         lastAutoSubmittedDhakaKey = key;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(missionData));
-        try { renderCalendar(viewMonth, viewYear); } catch(e){}
-        try { updateMonthSummary(viewMonth, viewYear); } catch(e){}
+        renderCalendar(viewMonth, viewYear); updateMonthSummary(viewMonth, viewYear);
         if(activeKey === key) renderSessions();
       }
     }
-  } catch(e){ console.warn('auto-submit error', e); }
+  }catch(e){ console.warn('auto submit error', e); }
 }
 setInterval(tryAutoSubmitForDhakaToday, 20*1000);
 tryAutoSubmitForDhakaToday();
 
-/* ----------------- Color & tooltip helpers ----------------- */
+/* ----------------- color function (as you already had) ----------------- */
 function colorForDay(data){
   if(!data) return '#151618';
   if(data.historical) return 'hsl(25 45% 28%)';
   const sess = Array.isArray(data.sessions) ? data.sessions : [];
   const filled = sess.filter(s => s!==null && s!==undefined && s!=='').length;
-
-  // Unsubmitted & empty -> deep dark
   if(filled === 0 && !data.submitted) return 'hsl(0 0% 6%)';
-
   if(data.submitted){
-    // Provided thresholds produce gradient hues:
     if(filled < 6){
-      const ratio = filled / 5; // 0..1
-      const hue = Math.round(0 + ratio * 20); // red-ish to orange
+      const ratio = filled / 5;
+      const hue = Math.round(0 + ratio * 20);
       const sat = 78;
       const lightness = 10 + Math.round(ratio * 28);
       return `hsl(${hue} ${sat}% ${lightness}%)`;
     } else if(filled >= 6 && filled < 8){
-      const ratio = (filled - 6) / 2; // 0..1
-      const hue = Math.round(45 + ratio * 10); // orange -> yellowish
-      const sat = 80 - Math.round(ratio * 6);
+      const ratio = (filled - 6) / 2;
+      const hue = Math.round(45 + ratio * 10);
+      const sat = 80 - Math.round(ratio*6);
       const lightness = 28 + Math.round(ratio * 8);
       return `hsl(${hue} ${sat}% ${lightness}%)`;
     } else if(filled >= 8 && filled < 10){
       const ratio = (filled - 8) / 2;
-      const hue = Math.round(100 + ratio * 10); // greenish
+      const hue = Math.round(100 + ratio * 10);
       const sat = 70 + Math.round(ratio * 8);
       const lightness = 30 + Math.round(ratio * 8);
       return `hsl(${hue} ${sat}% ${lightness}%)`;
     } else if(filled >= 10 && filled < 12){
       const ratio = (filled - 10) / 2;
-      const hue = Math.round(195 + ratio * 10); // skyblue -> blue
+      const hue = Math.round(195 + ratio * 10);
       const sat = 68 + Math.round(ratio * 6);
       const lightness = 32 + Math.round(ratio * 6);
       return `hsl(${hue} ${sat}% ${lightness}%)`;
     } else if(filled >= 12 && filled < 16){
       const ratio = (filled - 12) / 4;
-      const hue = Math.round(210 + ratio * 10); // blue -> purpleish
+      const hue = Math.round(210 + ratio * 10);
       const sat = 66 + Math.round(ratio * 10);
       const lightness = 34 + Math.round(ratio * 6);
       return `hsl(${hue} ${sat}% ${lightness}%)`;
     } else {
-      // 16+
       const ratio = Math.min((filled - 16) / 8, 1);
       const hue = 270;
       const sat = 68 + Math.round(ratio * 12);
@@ -725,7 +697,6 @@ function colorForDay(data){
       return `hsl(${hue} ${sat}% ${lightness}%)`;
     }
   } else {
-    // not submitted but has some progress: gentle gradient towards yellow/green based on progress to target
     const progress = Math.min(filled / Math.max(1, DAILY_TARGET), 1);
     const hue = Math.round(5 + progress * 80);
     const sat = 60 + Math.round(progress * 20);
@@ -738,7 +709,7 @@ function detailsTooltipText(data){
   if(!data) return '';
   const lines = [];
   const sess = Array.isArray(data.sessions) ? data.sessions : [];
-  sess.forEach((s,i) => lines.push(`Session ${i+1}: ${(s===null||s===undefined||s==='') ? '—' : s + '/10'}`));
+  sess.forEach((s,i)=> lines.push(`Session ${i+1}: ${(s===null||s===undefined||s==='')?'—':s + '/10'}`));
   lines.push(`Filled sessions: ${sess.filter(s=>s!==null&&s!==undefined&&s!=='').length}`);
   lines.push(`Mandatory: ${FIXED_SESSIONS}, Target: ${DAILY_TARGET}`);
   lines.push(`Efficiency: ${data.efficiency ?? 0}%`);
@@ -750,97 +721,64 @@ function detailsTooltipText(data){
 function renderCalendar(month, year){
   if(!daysContainer) return;
   daysContainer.innerHTML = '';
-  safeSetText(monthNameEl, `${months[month]} ${year}`);
-
+  if(monthNameEl) monthNameEl.textContent = `${months[month]} ${year}`;
   const firstDayIndex = new Date(year, month, 1).getDay();
   const lastDate = new Date(year, month+1, 0).getDate();
-
-  // leading empty cells
-  for(let i=0;i<firstDayIndex;i++){
-    const empty = document.createElement('div');
-    empty.className = 'day empty';
-    daysContainer.appendChild(empty);
-  }
-
+  for(let i=0;i<firstDayIndex;i++){ const b=document.createElement('div'); b.className='day empty'; daysContainer.appendChild(b); }
   const dhNow = getDhakaNow();
   const dhTodayKey = ymdKey(dhNow);
-
   for(let d=1; d<=lastDate; d++){
     const dateObj = new Date(year, month, d);
     const key = `${dateObj.getFullYear()}-${dateObj.getMonth()+1}-${dateObj.getDate()}`;
     const data = missionData[key];
-    const div = document.createElement('div');
-    div.className = 'day';
-    div.setAttribute('data-key', key);
-
-    const num = document.createElement('div');
-    num.className = 'num';
-    num.textContent = d;
-    div.appendChild(num);
+    const div = document.createElement('div'); div.className='day'; div.setAttribute('data-key', key);
+    const num = document.createElement('div'); num.className='num'; num.textContent = d; div.appendChild(num);
 
     if(key === dhTodayKey){
       div.classList.add('today');
-      const live = missionData[dhTodayKey] || { sessions: [], efficiency:0, submitted:false };
-      const filled = (Array.isArray(live.sessions) ? live.sessions.filter(s => s!==null && s!==undefined && s!=='').length : 0);
-      const info = document.createElement('div'); info.className = 'info';
+      const live = missionData[dhTodayKey] || {sessions:[],efficiency:0,submitted:false};
+      const filled = (Array.isArray(live.sessions)? live.sessions.filter(s=>s!==null&&s!==undefined&&s!=='').length : 0);
+      const info = document.createElement('div'); info.className='info';
       info.textContent = live.submitted ? `${live.efficiency||0}% efficiency` : `Progress: ${filled}/${Math.max(live.sessions.length,1)}`;
       div.appendChild(info);
       div.style.background = colorForDay(live);
-    } else if(data && (data.submitted || (Array.isArray(data.sessions) && data.sessions.length > 0))){
-      const eff = document.createElement('div'); eff.className = 'info';
-      eff.textContent = `${data.efficiency||0}% efficiency`;
+    } else if(data && (data.submitted || (Array.isArray(data.sessions) && data.sessions.length>0))){
+      const eff = document.createElement('div'); eff.className='info'; eff.textContent = `${data.efficiency||0}% efficiency`;
       div.appendChild(eff);
       div.classList.add('submitted');
       div.style.background = colorForDay(data);
     } else if(data && data.historical){
-      const info = document.createElement('div'); info.className = 'info';
-      info.textContent = `No study data`;
+      const info = document.createElement('div'); info.className='info'; info.textContent = `No study data`;
       div.appendChild(info);
       div.style.background = colorForDay(data);
       div.classList.add('pending');
     } else if(data && !data.submitted){
-      const info = document.createElement('div'); info.className = 'info';
-      const filled = Array.isArray(data.sessions) ? data.sessions.filter(s => s!==null && s!==undefined && s!=='').length : 0;
-      const total = Math.max((Array.isArray(data.sessions) ? data.sessions.length : 1), 1);
-      info.textContent = `Saved — ${filled}/${total}`;
+      const info = document.createElement('div'); info.className='info';
+      info.textContent = `Saved — ${ (Array.isArray(data.sessions) ? data.sessions.filter(s => s!==null && s!==undefined && s!=='').length : 0) }/ ${Math.max((Array.isArray(data.sessions) ? data.sessions.length : 1),1) }`;
       div.appendChild(info);
       div.style.background = colorForDay(data);
       div.classList.add('pending');
     } else {
-      // no data
       div.style.background = '#151618';
     }
 
-    // future locking
     const nowDh = getDhakaNow();
-    if(dateObj > new Date(nowDh.getFullYear(), nowDh.getMonth(), nowDh.getDate())){
-      div.classList.add('locked');
-      div.title = 'Future - locked';
-    }
+    if(dateObj > new Date(nowDh.getFullYear(), nowDh.getMonth(), nowDh.getDate())){ div.classList.add('locked'); div.title = 'Future - locked'; }
 
-    // tooltip anchored near cell
     div.addEventListener('mouseenter', (e)=>{
       const txt = detailsTooltipText(data);
-      if(!txt) return;
-      if(!tooltip) return;
-      tooltip.textContent = txt;
-      tooltip.style.display = 'block';
-
-      const padding = 12;
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
+      if(!txt || !tooltip) return;
+      tooltip.textContent = txt; tooltip.style.display='block';
+      const padding=12; const vw=window.innerWidth; const vh=window.innerHeight;
       const rect = e.currentTarget.getBoundingClientRect();
-      let left = rect.right + 8;
-      let top = rect.top;
+      let left = rect.right + 8; let top = rect.top;
       if(left + 320 > vw) left = rect.left - 8 - 320;
       if(left < padding) left = padding;
       if(top + 120 > vh) top = Math.max(padding, vh - 140);
-      tooltip.style.left = left + 'px';
-      tooltip.style.top = top + 'px';
+      tooltip.style.left = left + 'px'; tooltip.style.top = top + 'px';
     });
-    div.addEventListener('mouseleave', ()=> { if(tooltip) tooltip.style.display='none'; });
+    div.addEventListener('mouseleave', ()=> tooltip && (tooltip.style.display='none'));
 
-    // clicking opens panel (if not locked)
     div.addEventListener('click', ()=>{
       if(div.classList.contains('locked')) return;
       const k = div.getAttribute('data-key');
@@ -853,115 +791,67 @@ function renderCalendar(month, year){
   }
 }
 
-/* --------------- End of first half ---------------
-   Next part will include chart helpers (safe canvas selection),
-   updateMonthSummary override/patch, chart rendering (bar/donut/compare),
-   import/export/share, modal open/close wiring and initial boot sequence.
-*/
-
-
-/* ----------------- Second half: charts, analysis, import/export, modal wiring ----------------- */
-
-/* Safe canvas context selection:
-   There are duplicate canvas IDs: one in main page and one in modal.
-   This helper prefers the canvas inside the modal when the modal is visible/open,
-   otherwise it chooses a visible canvas on the page.
-*/
+/* ----------------- Charts: safe selection + instances ----------------- */
 function getCanvasContext(canvasId){
-  try {
-    // collect all nodes with that id (if duplicates present, querySelectorAll returns NodeList)
+  try{
     const nodes = Array.from(document.querySelectorAll(`#${canvasId}`));
     if(nodes.length === 0) return null;
-
-    // If modal is present and open, prefer the canvas inside it
     if(analysisModal && analysisModal.getAttribute && analysisModal.getAttribute('aria-hidden') !== 'true'){
       const inside = nodes.find(n => analysisModal.contains(n));
       if(inside && inside.getContext) return inside.getContext('2d');
     }
-
-    // Prefer a visible canvas on page (offsetParent != null is a simple visible check)
     const visible = nodes.find(n => {
-      try { return (n.offsetParent !== null) || (n.getClientRects && n.getClientRects().length > 0); }
-      catch(e){ return false; }
+      try { return (n.offsetParent !== null) || (n.getClientRects && n.getClientRects().length>0); } catch(e){ return false; }
     });
     const chosen = visible || nodes[0];
     if(chosen && chosen.getContext) return chosen.getContext('2d');
-  } catch(e){
-    console.warn('getCanvasContext error for', canvasId, e);
-  }
+  }catch(e){ console.warn('getCanvasContext', canvasId, e); }
   return null;
 }
 
-/* Chart instances (shared) */
-let sessionBarChart = null;
-let donutChart = null;
-let compareChart = null;
+let sessionBarChart = null, donutChart=null, compareChart=null, effDistChart=null, radarChart=null;
 
-/* render session distribution bar chart */
+/* session distribution chart (existing) */
 function renderSessionDistributionChart(distribution){
-  // labels 0..15, last bucket '16+'
   const labels = distribution.map((_,i)=> i === distribution.length-1 ? '16+' : String(i));
   const data = distribution.map(v => v || 0);
-
-  const ctx = getCanvasContext('sessionDistCanvas');
-  if(!ctx) return; // nothing to draw into
-
-  try { if(sessionBarChart) sessionBarChart.destroy(); } catch(e){/*ignore*/}
-
-  // compute background colours using colorForDay() by simulating a pseudo day having that many filled sessions
-  const bgColors = labels.map(lbl => {
+  const ctx = getCanvasContext('sessionDistCanvas') || getCanvasContext('sessionDistCanvasModal');
+  if(!ctx) return;
+  try{ if(sessionBarChart) sessionBarChart.destroy(); }catch(e){}
+  const bgColors = labels.map(lbl=>{
     const filled = (lbl === '16+' ? distribution.length - 1 : Number(lbl));
     const pseudo = { sessions: new Array(filled).fill(1), efficiency: 80, submitted: true };
     return colorForDay(pseudo);
   });
-
   sessionBarChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [{
-        data,
-        backgroundColor: bgColors,
-        borderRadius: 6,
-        barPercentage: 0.72
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: { ticks: { color:'#cfd8dc' } },
-        y: { beginAtZero: true, ticks: { color:'#cfd8dc', stepSize:1 } }
-      },
-      plugins: {
-        legend: { display:false },
-        tooltip: { callbacks: { label: (ctx) => ` ${ctx.dataset.data[ctx.dataIndex]} day(s)` } }
-      }
+    type:'bar',
+    data:{ labels, datasets:[{ data, backgroundColor: bgColors, borderRadius:6, barPercentage:0.72 }]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      scales:{ x:{ ticks:{ color:'#cfd8dc' }}, y:{ beginAtZero:true, ticks:{ color:'#cfd8dc', stepSize:1 }}},
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: (ctx)=> ` ${ctx.dataset.data[ctx.dataIndex]} day(s)` } } }
     }
   });
 }
 
-/* render donut chart: success vs partial vs fail vs no-data */
+/* donut chart (success breakdown) */
 function renderDonutChart(distribution){
-  let geTarget = 0, geMandatory = 0, belowMandatory = 0, noData = 0;
+  let geTarget=0, geMandatory=0, belowMandatory=0, noData=0;
   for(let i=0;i<distribution.length;i++){
-    const cnt = distribution[i] || 0;
-    if(i === 0) noData += cnt;
+    const cnt = distribution[i]||0;
+    if(i===0) noData += cnt;
     else if(i >= DAILY_TARGET) geTarget += cnt;
     else if(i >= FIXED_SESSIONS) geMandatory += cnt;
     else belowMandatory += cnt;
   }
-
-  const ctx = getCanvasContext('donutCanvas');
+  const ctx = getCanvasContext('donutCanvas') || getCanvasContext('donutCanvasModal');
   if(!ctx) return;
-  try { if(donutChart) donutChart.destroy(); } catch(e){}
-
+  try{ if(donutChart) donutChart.destroy(); }catch(e){}
   donutChart = new Chart(ctx, {
     type:'doughnut',
     data:{
       labels:['≥ Target','≥ Mandatory','Below Mandatory','No data'],
-      datasets:[{
-        data:[geTarget, geMandatory, belowMandatory, noData],
+      datasets:[{ data:[geTarget,geMandatory,belowMandatory,noData],
         backgroundColor:[
           colorForDay({ sessions: new Array(DAILY_TARGET).fill(1), submitted:true }),
           colorForDay({ sessions: new Array(FIXED_SESSIONS).fill(1), submitted:true }),
@@ -971,88 +861,99 @@ function renderDonutChart(distribution){
         hoverOffset:8
       }]
     },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      plugins:{ legend:{ position:'bottom', labels:{ color:'#cfd8dc' } } }
-    }
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ color:'#cfd8dc' } } } }
   });
 }
 
-/* render compare chart: previous vs current month daily counts */
+/* compare chart */
 function renderCompareChart(month, year){
   const daysThisMonth = new Date(year, month+1, 0).getDate();
   const labels = Array.from({length:daysThisMonth}, (_,i)=>String(i+1));
-  const thisCounts = labels.map((_, idx)=>{
-    const key = `${year}-${month+1}-${idx+1}`;
-    const data = missionData[key];
-    return (data && Array.isArray(data.sessions)) ? data.sessions.filter(s=>s!==null&&s!==undefined&&s!=='').length : 0;
-  });
-
-  let prevMonth = month-1, prevYear = year;
-  if(prevMonth < 0){ prevMonth = 11; prevYear = year-1; }
+  const thisCounts = labels.map((_, idx)=>{ const key = `${year}-${month+1}-${idx+1}`; const data = missionData[key]; return (data && Array.isArray(data.sessions)) ? data.sessions.filter(s=>s!==null&&s!==undefined&&s!=='').length : 0 });
+  let prevMonth = month-1, prevYear = year; if(prevMonth < 0){ prevMonth = 11; prevYear = year-1; }
   const daysPrev = new Date(prevYear, prevMonth+1, 0).getDate();
-  const prevCounts = labels.map((_, idx)=>{
-    const day = idx+1;
-    if(day > daysPrev) return 0;
-    const key = `${prevYear}-${prevMonth+1}-${day}`;
-    const data = missionData[key];
-    return (data && Array.isArray(data.sessions)) ? data.sessions.filter(s=>s!==null&&s!==undefined&&s!=='').length : 0;
-  });
-
+  const prevCounts = labels.map((_,idx)=> { const day = idx+1; if(day>daysPrev) return 0; const key = `${prevYear}-${prevMonth+1}-${day}`; const data = missionData[key]; return (data && Array.isArray(data.sessions)) ? data.sessions.filter(s=>s!==null&&s!==undefined&&s!=='').length : 0 });
   const ctx = getCanvasContext('compareCanvas');
   if(!ctx) return;
-  try { if(compareChart) compareChart.destroy(); } catch(e){}
-
+  try{ if(compareChart) compareChart.destroy(); }catch(e){}
   compareChart = new Chart(ctx, {
     type:'line',
-    data:{
-      labels,
-      datasets:[
-        { label: 'Previous month', data: prevCounts, tension:0.3, borderWidth:2, borderColor: 'hsl(210 76% 60%)', backgroundColor:'rgba(43,110,246,0.08)', pointRadius:2 },
-        { label: 'This month', data: thisCounts, tension:0.3, borderWidth:2, borderColor: 'hsl(120 60% 45%)', backgroundColor:'rgba(76,175,80,0.08)', pointRadius:2 }
-      ]
-    },
+    data:{ labels, datasets:[
+      { label: 'Previous month', data: prevCounts, tension:0.3, borderWidth:2, borderColor:'hsl(210 76% 60%)', backgroundColor:'rgba(43,110,246,0.08)', pointRadius:2 },
+      { label: 'This month', data: thisCounts, tension:0.3, borderWidth:2, borderColor:'hsl(120 60% 45%)', backgroundColor:'rgba(76,175,80,0.08)', pointRadius:2 }
+    ]},
     options:{ responsive:true, maintainAspectRatio:false, scales:{ x:{ ticks:{ color:'#cfd8dc' }}, y:{ ticks:{ color:'#cfd8dc' } } }, plugins:{ legend:{ labels:{ color:'#cfd8dc' } } } }
   });
 }
 
-/* compute streaks for a month */
-function computeStreaksForMonth(month, year){
-  const nowYear = year;
-  const nowMonth = month;
-  const lastDate = new Date(nowYear, nowMonth+1, 0).getDate();
-  let best = 0, temp = 0;
-  for(let d=1; d<= lastDate; d++){
-    const key = `${nowYear}-${nowMonth+1}-${d}`;
-    const data = missionData[key];
-    const filled = (data && Array.isArray(data.sessions)) ? data.sessions.filter(s=>s!==null&&s!==undefined&&s!=='').length : 0;
-    if(filled >= FIXED_SESSIONS) temp++;
-    else { if(temp > best) best = temp; temp = 0; }
-  }
-  if(temp > best) best = temp;
-
-  let curr = 0;
-  for(let d=lastDate; d>=1; d--){
-    const key = `${nowYear}-${nowMonth+1}-${d}`;
-    const data = missionData[key];
-    const filled = (data && Array.isArray(data.sessions)) ? data.sessions.filter(s=>s!==null&&s!==undefined&&s!=='').length : 0;
-    if(filled >= FIXED_SESSIONS) curr++;
-    else break;
-  }
-  return { best, current: curr };
+/* NEW: Efficiency distribution (avg efficiency per day -> bucketed) */
+function renderEfficiencyDistributionChart(effArray){
+  // effArray is list of efficiencies (0..100) for days within the month
+  // bucket into 0-9,10-19,...,90-99,100
+  const buckets = new Array(11).fill(0);
+  effArray.forEach(v=>{
+    if(v === null || v === undefined || isNaN(Number(v))) return;
+    const num = Math.max(0, Math.min(100, Number(v)));
+    const idx = Math.floor(num/10);
+    buckets[idx] += 1;
+  });
+  const labels = ['0-9','10-19','20-29','30-39','40-49','50-59','60-69','70-79','80-89','90-99','100'];
+  const ctx = getCanvasContext('effDistCanvasModal') || getCanvasContext('effDistCanvas');
+  if(!ctx) return;
+  try{ if(effDistChart) effDistChart.destroy(); }catch(e){}
+  const bgColors = labels.map((_,i)=> colorForDay({ sessions: new Array(i*1).fill(1), submitted:true }));
+  effDistChart = new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets:[{ data: buckets, backgroundColor: bgColors, borderRadius:6 }]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      scales:{ x:{ ticks:{ color:'#cfd8dc' }}, y:{ beginAtZero:true, ticks:{ color:'#cfd8dc', stepSize:1 } } },
+      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: ctx => ` ${ctx.dataset.data[ctx.dataIndex]} day(s)` } } }
+    }
+  });
 }
 
-/* updateMonthSummary: compute totals, distribution, update UI tiles + charts
-   This implementation is defensive: uses safeSetText for elements that might be missing.
-*/
-function updateMonthSummary(month, year){
-  // compute totals & distribution
-  let totalSessions = 0, totalPureMinutes = 0, totalNormalMinutes = 0, sumEff = 0, effCount = 0;
+/* NEW: Radar summary (a compact KPI overview) */
+function renderRadarSummary(avgEff, avgSessions, pctGE8, pctGE12, normPure){
+  const ctx = getCanvasContext('radarCanvasModal') || getCanvasContext('radarCanvas');
+  if(!ctx) return;
+  try{ if(radarChart) radarChart.destroy(); }catch(e){}
+  radarChart = new Chart(ctx, {
+    type:'radar',
+    data:{
+      labels:['Avg Eff (%)','Avg sessions','% days ≥ 8','% days ≥ 12','Pure study norm'],
+      datasets:[{
+        label: 'This month',
+        data: [
+          Math.round(avgEff || 0),
+          Math.round((avgSessions || 0) * 10), // scale a bit so it sits in radar nicely
+          Math.round((pctGE8 || 0) * 100),
+          Math.round((pctGE12 || 0) * 100),
+          Math.round((normPure || 0))
+        ],
+        fill:true,
+        backgroundColor:'rgba(76,175,80,0.12)',
+        borderColor:'hsl(120 60% 45%)',
+        pointBackgroundColor:'hsl(120 60% 45%)'
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      scales:{
+        r:{ pointLabels:{ color:'#cfd8dc' }, grid:{ color:'rgba(255,255,255,0.03)' }, ticks:{ display:false } }
+      },
+      plugins:{ legend:{ display:false } }
+    }
+  });
+}
+
+/* ----------------- compute month summary + charts + progress ----------------- */
+function computeMonthRaw(month, year){
   const maxBucket = 16;
   const distribution = new Array(maxBucket + 1).fill(0);
+  let totalSessions = 0, totalPureMinutes = 0, totalNormalMinutes = 0, sumEff = 0, effCount = 0;
   let daysInMonth = 0;
-
+  const effPerDay = []; // for efficiency distribution chart
   for(const k in missionData){
     const parts = k.split('-'); if(parts.length !== 3) continue;
     const y = Number(parts[0]), m = Number(parts[1]);
@@ -1069,25 +970,27 @@ function updateMonthSummary(month, year){
       } else {
         distribution[0] = (distribution[0] || 0) + 1;
       }
+      const eff = (d && d.efficiency !== undefined && d.efficiency !== null) ? Number(d.efficiency) : (d ? calculateEfficiencyFromSessions(d) : 0);
+      if(!isNaN(eff)){
+        effPerDay.push(eff);
+      }
       if(d && d.submitted){ sumEff += (d.efficiency||0); effCount++; }
     }
   }
+  return { distribution, totalSessions, totalPureMinutes, totalNormalMinutes, sumEff, effCount, effPerDay, daysInMonth };
+}
 
-  // main panel updates (safe)
+function updateMonthSummary(month, year){
+  const summary = computeMonthRaw(month, year);
+  const { distribution, totalSessions, totalPureMinutes, totalNormalMinutes, sumEff, effCount, effPerDay, daysInMonth } = summary;
+
   safeSetText(monthSessionsEl, totalSessions);
   safeSetText(monthPureEl, minutesToHrsMins(totalPureMinutes));
   safeSetText(monthNormalEl, minutesToHrsMins(totalNormalMinutes));
-  if(kpiTotal) safeSetText(kpiTotal, totalSessions);
-  if(kpiPure) safeSetText(kpiPure, monthPureEl ? monthPureEl.textContent : minutesToHrsMins(totalPureMinutes));
-  if(kpiNormal) safeSetText(kpiNormal, monthNormalEl ? monthNormalEl.textContent : minutesToHrsMins(totalNormalMinutes));
-  if(kpiAvg) safeSetText(kpiAvg, `${effCount>0 ? Math.round(sumEff/effCount) : 0}%`);
-  if(kpiDetails) safeSetText(kpiDetails, `Submitted days: ${effCount}`);
-
-  // modal KPI updates
-  safeSetText(m_kpiTotal, totalSessions);
-  safeSetText(m_kpiAvg, `${effCount>0?Math.round(sumEff/effCount):0}%`);
-  safeSetText(m_kpiPure, minutesToHrsMins(totalPureMinutes));
-  safeSetText(m_kpiNormal, minutesToHrsMins(totalNormalMinutes));
+  if(m_kpiTotal) safeSetText(m_kpiTotal, totalSessions);
+  if(m_kpiAvg) safeSetText(m_kpiAvg, `${effCount>0?Math.round(sumEff/effCount):0}%`);
+  if(m_kpiPure) safeSetText(m_kpiPure, minutesToHrsMins(totalPureMinutes));
+  if(m_kpiNormal) safeSetText(m_kpiNormal, minutesToHrsMins(totalNormalMinutes));
 
   const daysGE8 = distribution.slice(8).reduce((a,b)=>a+b,0);
   const daysGE10 = distribution.slice(10).reduce((a,b)=>a+b,0);
@@ -1098,7 +1001,7 @@ function updateMonthSummary(month, year){
   safeSetText(m_daysGE12, daysGE12);
 
   const totalDaysWithData = distribution.reduce((a,b)=>a+b,0);
-  const avgSessions = totalDaysWithData > 0 ? (totalSessions / totalDaysWithData) : 0;
+  const avgSessions = totalDaysWithData>0 ? (totalSessions / totalDaysWithData) : 0;
   safeSetText(m_avgSessions, avgSessions.toFixed(2));
 
   // streaks
@@ -1106,49 +1009,93 @@ function updateMonthSummary(month, year){
   safeSetText(m_currentStreak, streakInfo.current || 0);
   safeSetText(m_bestStreak, streakInfo.best || 0);
 
-  // quick-stats (right column)
-  const daysIn = distribution.reduce((a,b)=>a+b,0);
-  const daysGE6 = distribution.slice(6).reduce((a,b)=>a+b,0);
-  const daysGE16 = distribution.slice(16).reduce((a,b)=>a+b,0);
-
-  safeSetText(el_daysInMonth, daysIn);
-  safeSetText(el_daysGE6, daysGE6);
+  // quick stats
+  safeSetText(el_daysInMonth, distribution.reduce((a,b)=>a+b,0));
+  safeSetText(el_daysGE6, distribution.slice(6).reduce((a,b)=>a+b,0));
   safeSetText(el_daysGE8, daysGE8);
   safeSetText(el_daysGE10, daysGE10);
   safeSetText(el_daysGE12, daysGE12);
-  safeSetText(el_daysGE16, daysGE16);
-
+  safeSetText(el_daysGE16, distribution.slice(16).reduce((a,b)=>a+b,0));
   if(el_uiDailyTarget) el_uiDailyTarget.textContent = DAILY_TARGET;
   if(el_uiMandatory) el_uiMandatory.textContent = FIXED_SESSIONS;
 
-  // discipline tiles
   safeSetText(el_avgSessions, avgSessions.toFixed(2));
   safeSetText(el_d10, daysGE10);
   safeSetText(el_d12, daysGE12);
 
-  // page streak tiles
   const pageStreak = computeStreaksForMonth(month, year);
   safeSetText(el_currentStreak, pageStreak.current || 0);
   safeSetText(el_bestStreak, pageStreak.best || 0);
 
-  // draw charts (chart methods will use getCanvasContext)
-  try { renderSessionDistributionChart(distribution); } catch(e){ console.warn('renderSessionDistributionChart failed', e); }
-  try { renderDonutChart(distribution); } catch(e){ console.warn('renderDonutChart failed', e); }
-  try { renderCompareChart(month, year); } catch(e){ console.warn('renderCompareChart failed', e); }
+  // Draw charts
+  try{ renderSessionDistributionChart(distribution); }catch(e){ console.warn('sessionDist draw fail', e); }
+  try{ renderDonutChart(distribution); }catch(e){ console.warn('donut draw fail', e); }
+  try{ renderCompareChart(month, year); }catch(e){ console.warn('compare draw fail', e); }
+
+  // Efficiency distribution & radar summary
+  try{ renderEfficiencyDistributionChart(effPerDay); }catch(e){ console.warn('effDist draw fail', e); }
+  const avgEff = effCount > 0 ? (sumEff / effCount) : 0;
+  const pctGE8 = (distribution.slice(8).reduce((a,b)=>a+b,0) / Math.max(1, distribution.reduce((a,b)=>a+b,0)));
+  const pctGE12 = (distribution.slice(12).reduce((a,b)=>a+b,0) / Math.max(1, distribution.reduce((a,b)=>a+b,0)));
+  // normalized pure minutes (scale 0..100)
+  const normPure = Math.min(100, Math.round((totalPureMinutes / Math.max(1, totalNormalMinutes)) * 100));
+  try{ renderRadarSummary(avgEff, avgSessions, pctGE8, pctGE12, normPure); }catch(e){ console.warn('radar draw fail', e); }
+
+  // Monthly progress bar
+  try {
+    const sessionsDone = totalSessions;
+    const target = MONTHLY_TARGET;
+    const pct = Math.min(100, Math.round((sessionsDone / Math.max(1, target)) * 100));
+    if(monthlyProgressLabel) monthlyProgressLabel.textContent = `${sessionsDone} / ${target} sessions (${pct}%)`;
+    if(monthlyProgressBar){
+      monthlyProgressBar.style.width = pct + '%';
+      // color transition: red -> orange -> yellow -> green when >=100
+      if(pct >= 100){
+        monthlyProgressBar.style.background = 'linear-gradient(90deg,#00b020,#15e07f)';
+      } else if(pct >= 75){
+        monthlyProgressBar.style.background = 'linear-gradient(90deg,#8fd84f,#2ebf38)';
+      } else if(pct >= 40){
+        monthlyProgressBar.style.background = 'linear-gradient(90deg,#ffb74d,#ffd54f)';
+      } else {
+        monthlyProgressBar.style.background = 'linear-gradient(90deg,#ff4d4f,#ffb74d)';
+      }
+    }
+  } catch(e){ console.warn('progress update fail', e); }
 }
 
-/* ----------------- import / export / share ----------------- */
+/* compute streaks for month */
+function computeStreaksForMonth(month, year){
+  const nowYear = year; const nowMonth = month;
+  const lastDate = new Date(nowYear, nowMonth+1, 0).getDate();
+  let best = 0, temp = 0;
+  for(let d=1; d<=lastDate; d++){
+    const key = `${nowYear}-${nowMonth+1}-${d}`;
+    const data = missionData[key];
+    const filled = (data && Array.isArray(data.sessions)) ? data.sessions.filter(s=>s!==null&&s!==undefined&&s!=='').length : 0;
+    if(filled >= FIXED_SESSIONS) temp++; else { if(temp > best) best = temp; temp = 0; }
+  }
+  if(temp > best) best = temp;
+  let curr = 0;
+  for(let d=lastDate; d>=1; d--){
+    const key = `${nowYear}-${nowMonth+1}-${d}`;
+    const data = missionData[key];
+    const filled = (data && Array.isArray(data.sessions)) ? data.sessions.filter(s=>s!==null&&s!==undefined&&s!=='').length : 0;
+    if(filled >= FIXED_SESSIONS) curr++; else break;
+  }
+  return { best, current: curr };
+}
+
+/* ----------------- import / export / share wiring ----------------- */
 if(exportBtn){
   exportBtn.addEventListener('click', ()=>{
     const m = viewMonth + 1; const y = viewYear; const out = {};
     for(const k in missionData){
-      const parts = k.split('-'); if(parts.length !== 3) continue;
+      const parts = k.split('-'); if(parts.length!==3) continue;
       const ky = Number(parts[0]), km = Number(parts[1]);
       if(ky === y && km === m) out[k] = missionData[k];
     }
-    const blob = new Blob([JSON.stringify(out, null, 2)], { type:'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `mission_${y}_${m}.json`; a.click(); URL.revokeObjectURL(url);
+    const blob = new Blob([JSON.stringify(out, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `mission_${y}_${m}.json`; a.click(); URL.revokeObjectURL(url);
   });
 }
 if(importBtn && fileInput){
@@ -1159,27 +1106,12 @@ if(importBtn && fileInput){
       const text = await f.text(); const parsed = JSON.parse(text);
       const m = viewMonth + 1; const y = viewYear;
       if(!confirm(`Import will replace data for ${months[viewMonth]} ${viewYear} with the file's contents. Continue?`)) return;
-      // delete existing month
-      for(const k of Object.keys(Object.assign({}, missionData))){
-        const parts = k.split('-'); if(parts.length !== 3) continue;
-        const ky = Number(parts[0]), km = Number(parts[1]);
-        if(ky === y && km === m) delete missionData[k];
-      }
-      // copy new ones
-      for(const k in parsed){
-        const parts = k.split('-'); if(parts.length === 3){
-          const ky = Number(parts[0]), km = Number(parts[1]);
-          if(ky === y && km === m) missionData[k] = parsed[k];
-        }
-      }
+      for(const k of Object.keys(Object.assign({}, missionData))){ const parts = k.split('-'); if(parts.length!==3) continue; const ky = Number(parts[0]), km = Number(parts[1]); if(ky===y && km===m) delete missionData[k]; }
+      for(const k in parsed){ const parts = k.split('-'); if(parts.length===3){ const ky = Number(parts[0]), km = Number(parts[1]); if(ky===y && km===m) missionData[k] = parsed[k]; } }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(missionData));
-      renderCalendar(viewMonth, viewYear);
-      updateMonthSummary(viewMonth, viewYear);
+      renderCalendar(viewMonth, viewYear); updateMonthSummary(viewMonth, viewYear);
       alert('Import complete for this month.');
-    } catch(err){
-      alert('Import failed: Invalid JSON');
-      console.error(err);
-    }
+    } catch(err){ alert('Import failed: Invalid JSON'); console.error(err); }
     fileInput.value = '';
   });
 }
@@ -1188,164 +1120,88 @@ if(shareBtn){
   shareBtn.addEventListener('click', async ()=>{
     const m = viewMonth + 1; const y = viewYear; const out = {};
     for(const k in missionData){
-      const parts = k.split('-'); if(parts.length !== 3) continue;
+      const parts = k.split('-'); if(parts.length!==3) continue;
       const ky = Number(parts[0]), km = Number(parts[1]);
-      if(ky === y && km === m) out[k] = missionData[k];
+      if(ky===y && km===m) out[k] = missionData[k];
     }
     const jsonStr = JSON.stringify(out, null, 2);
     try{
       const blob = new Blob([jsonStr], {type:'application/json'});
       const filesArray = [new File([blob], `mission_${y}_${m}.json`, {type:'application/json'})];
-      if(navigator.canShare && navigator.canShare({files: filesArray})){
-        await navigator.share({ files: filesArray, title: `Mission ${y}-${m}`, text: 'Monthly data' });
-        alert('Shared via native share.');
-        return;
-      }
-    } catch(e){ console.warn('native share failed', e); }
-    try { await navigator.clipboard.writeText(jsonStr); alert('Month JSON copied to clipboard (fallback).'); } catch(e){ console.warn('clipboard failed', e); alert('Could not share: no supported method available.'); }
+      if(navigator.canShare && navigator.canShare({files: filesArray})){ await navigator.share({ files: filesArray, title: `Mission ${y}-${m}`, text: 'Monthly data' }); alert('Shared via native share.'); return; }
+    }catch(e){ console.warn('native share failed', e); }
+    try{ await navigator.clipboard.writeText(jsonStr); alert('Month JSON copied to clipboard (fallback).'); }catch(e){ console.warn('clipboard failed', e); alert('Could not share: no supported method available.'); }
   });
 }
 
-/* ----------------- Modal open/close & month navigation ----------------- */
-function openAnalysis(){
-  if(!analysisModal) return;
-  analysisModal.setAttribute('aria-hidden','false');
-  safeSetText(modalMonthLabel, `${months[viewMonth]} ${viewYear}`);
-  // Give time for modal to unhide then redraw into its canvases
-  setTimeout(()=> updateMonthSummary(viewMonth, viewYear), 80);
-}
-function closeAnalysis(){
-  if(!analysisModal) return;
-  analysisModal.setAttribute('aria-hidden','true');
-}
-
+/* ----------------- modal wiring ----------------- */
+function openAnalysis(){ if(!analysisModal) return; analysisModal.setAttribute('aria-hidden','false'); if(modalMonthLabel) modalMonthLabel.textContent = `${months[viewMonth]} ${viewYear}`; setTimeout(()=> updateMonthSummary(viewMonth, viewYear), 80); }
+function closeAnalysis(){ if(!analysisModal) return; analysisModal.setAttribute('aria-hidden','true'); }
 if(openAnalysisBtn) openAnalysisBtn.addEventListener('click', openAnalysis);
 if(closeAnalysisBtn) closeAnalysisBtn.addEventListener('click', closeAnalysis);
+if(prevMonthModal) prevMonthModal.addEventListener('click', ()=>{ if(viewMonth===0){ viewMonth=11; viewYear--; } else viewMonth--; if(modalMonthLabel) modalMonthLabel.textContent = `${months[viewMonth]} ${viewYear}`; updateMonthSummary(viewMonth, viewYear); renderCalendar(viewMonth, viewYear); });
+if(nextMonthModal) nextMonthModal.addEventListener('click', ()=>{ if(viewMonth===11){ viewMonth=0; viewYear++; } else viewMonth++; if(modalMonthLabel) modalMonthLabel.textContent = `${months[viewMonth]} ${viewYear}`; updateMonthSummary(viewMonth, viewYear); renderCalendar(viewMonth, viewYear); });
 
-if(prevMonthModal) prevMonthModal.addEventListener('click', ()=>{
-  if(viewMonth === 0){ viewMonth = 11; viewYear--; } else viewMonth--;
-  safeSetText(modalMonthLabel, `${months[viewMonth]} ${viewYear}`);
-  updateMonthSummary(viewMonth, viewYear);
-  renderCalendar(viewMonth, viewYear);
-});
-if(nextMonthModal) nextMonthModal.addEventListener('click', ()=>{
-  if(viewMonth === 11){ viewMonth = 0; viewYear++; } else viewMonth++;
-  safeSetText(modalMonthLabel, `${months[viewMonth]} ${viewYear}`);
-  updateMonthSummary(viewMonth, viewYear);
-  renderCalendar(viewMonth, viewYear);
-});
-
-// close modal via ESC or clicking backdrop
-document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeAnalysis(); });
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape') closeAnalysis(); });
+if(analysisModal) analysisModal.addEventListener('click', (e)=>{ if(e.target === analysisModal) closeAnalysis(); });
 if(analysisModal){
-  analysisModal.addEventListener('click', (e)=>{ if(e.target === analysisModal) closeAnalysis(); });
+  try{
+    const mo = new MutationObserver((mutations)=>{ for(const m of mutations){ if(m.attributeName === 'aria-hidden'){ const val = analysisModal.getAttribute('aria-hidden'); if(val === 'false'){ setTimeout(()=> updateMonthSummary(viewMonth, viewYear), 50); } } } });
+    mo.observe(analysisModal, { attributes:true });
+  }catch(e){}
 }
 
-/* Observe modal aria-hidden attribute changes to trigger redraw when opening */
-if(analysisModal){
-  try {
-    const mo = new MutationObserver((mutations)=>{
-      for(const m of mutations){
-        if(m.attributeName === 'aria-hidden'){
-          const val = analysisModal.getAttribute('aria-hidden');
-          if(val === 'false'){
-            setTimeout(()=> updateMonthSummary(viewMonth, viewYear), 50);
-          }
-        }
-      }
-    });
-    mo.observe(analysisModal, { attributes: true });
-  } catch(e){ /* ignore in old browsers */ }
-}
-
-/* ----------------- Day panel loader ----------------- */
+/* ----------------- load day panel ----------------- */
 function loadDayPanel(key){
   if(!key) return;
   if(!missionData[key]) missionData[key] = { sessions: [], efficiency: 0, submitted:false, historical:false };
-
-  const parts = key.split('-'); if(parts.length !== 3) return;
+  const parts = key.split('-'); if(parts.length!==3) return;
   const y = Number(parts[0]), m = Number(parts[1]), d = Number(parts[2]);
   const dateObj = new Date(y, m-1, d);
-
   safeSetText(panelDate, formatDateLong(dateObj));
   safeSetText(panelTitle, `Daily Panel — ${dateObj.getDate()} ${months[dateObj.getMonth()]}`);
-
-  // make this day the activeKey
   activeKey = key;
-
-  // render sessions / eff
-  renderSessions();
-  renderEfficiencyInPanel();
-  updateMonthSummary(viewMonth, viewYear);
-
+  renderSessions(); renderEfficiencyInPanel(); updateMonthSummary(viewMonth, viewYear);
   const data = missionData[key];
   if(data && data.submitted && data.submittedAt){
-    try {
-      const t = new Date(data.submittedAt);
-      const dhStr = t.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' });
-      if(saveIndicator) safeSetText(saveIndicator, `Last updated: ${dhStr}`);
-    } catch(e){
-      if(saveIndicator) safeSetText(saveIndicator, 'Submitted');
-    }
-  } else {
-    if(saveIndicator) safeSetText(saveIndicator, '');
-  }
+    try{ const t = new Date(data.submittedAt); const dhStr = t.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }); if(saveIndicator) safeSetText(saveIndicator, `Last updated: ${dhStr}`); }
+    catch(e){ if(saveIndicator) safeSetText(saveIndicator, 'Submitted'); }
+  } else { if(saveIndicator) safeSetText(saveIndicator, ''); }
 }
 
-/* ----------------- initial render & navigation handlers ----------------- */
+/* ----------------- initial render & nav handlers ----------------- */
 function loadTodayPanel(){
-  dhakaNow = getDhakaNow();
-  todayDhakaKey = ymdKey(dhakaNow);
+  dhakaNow = getDhakaNow(); todayDhakaKey = ymdKey(dhakaNow);
   if(!missionData[todayDhakaKey]) missionData[todayDhakaKey] = { sessions: [], efficiency: 0, submitted:false, historical:false };
   activeKey = todayDhakaKey;
-
-  // ensure FIXED_SESSIONS placeholders for today
   if(isDhakaTodayKey(activeKey) && (!Array.isArray(missionData[activeKey].sessions) || missionData[activeKey].sessions.length < FIXED_SESSIONS)){
     missionData[activeKey].sessions = missionData[activeKey].sessions || [];
     while(missionData[activeKey].sessions.length < FIXED_SESSIONS) missionData[activeKey].sessions.push(null);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(missionData));
   }
-  renderCalendar(viewMonth, viewYear);
-  loadDayPanel(activeKey);
-  updateMonthSummary(viewMonth, viewYear);
+  renderCalendar(viewMonth, viewYear); loadDayPanel(activeKey); updateMonthSummary(viewMonth, viewYear);
 }
 
-/* attach prev/next month controls (left calendar) */
-if(prevBtn) prevBtn.addEventListener('click', ()=>{
-  if(viewMonth === 0){ viewMonth = 11; viewYear--; } else viewMonth--;
-  renderCalendar(viewMonth, viewYear);
-  updateMonthSummary(viewMonth, viewYear);
-});
-if(nextBtn) nextBtn.addEventListener('click', ()=>{
-  if(viewMonth === 11){ viewMonth = 0; viewYear++; } else viewMonth++;
-  renderCalendar(viewMonth, viewYear);
-  updateMonthSummary(viewMonth, viewYear);
-});
+if(prevBtn) prevBtn.addEventListener('click', ()=>{ if(viewMonth===0){ viewMonth=11; viewYear--; } else viewMonth--; renderCalendar(viewMonth, viewYear); updateMonthSummary(viewMonth, viewYear); });
+if(nextBtn) nextBtn.addEventListener('click', ()=>{ if(viewMonth===11){ viewMonth=0; viewYear++; } else viewMonth++; renderCalendar(viewMonth, viewYear); updateMonthSummary(viewMonth, viewYear); });
 
-/* keep day rollover in sync with Dhaka timezone */
 setInterval(()=>{
   const prev = todayDhakaKey;
-  dhakaNow = getDhakaNow();
-  todayDhakaKey = ymdKey(dhakaNow);
+  dhakaNow = getDhakaNow(); todayDhakaKey = ymdKey(dhakaNow);
   if(todayDhakaKey !== prev){
     if(!missionData[todayDhakaKey]) missionData[todayDhakaKey] = { sessions: [], efficiency: 0, submitted:false, historical:false };
-    loadTodayPanel();
-    renderCalendar(viewMonth, viewYear);
+    loadTodayPanel(); renderCalendar(viewMonth, viewYear);
   }
   tryAutoSubmitForDhakaToday();
 }, 60*1000);
 
-/* Expose missionData for debugging */
+/* expose for debug */
 window.__missionData = missionData;
 
 /* Boot */
-try {
-  renderCalendar(viewMonth, viewYear);
-  loadTodayPanel();
-} catch(e){
-  console.warn('initial render failed', e);
-}
+try{ renderCalendar(viewMonth, viewYear); loadTodayPanel(); } catch(e){ console.warn('initial render failed', e); }
 </script>
+
 
 
 
